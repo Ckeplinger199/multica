@@ -35,6 +35,7 @@ interface RichTextEditorProps {
 interface RichTextEditorRef {
   getMarkdown: () => string;
   clearContent: () => void;
+  setMarkdown: (md: string) => void;
   focus: () => void;
 }
 
@@ -226,6 +227,9 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>(
       getMarkdown: () => getEditorMarkdown(editor),
       clearContent: () => {
         editor?.commands.clearContent();
+      },
+      setMarkdown: (md: string) => {
+        editor?.commands.setContent(md);
       },
       focus: () => {
         editor?.commands.focus();

@@ -18,10 +18,13 @@ function CommentInput({ onSubmit }: CommentInputProps) {
     const content = editorRef.current?.getMarkdown()?.replace(/(\n\s*)+$/, "").trim();
     if (!content || submitting) return;
     setSubmitting(true);
+    editorRef.current?.clearContent();
+    setIsEmpty(true);
     try {
       await onSubmit(content);
-      editorRef.current?.clearContent();
-      setIsEmpty(true);
+    } catch {
+      editorRef.current?.setMarkdown(content);
+      setIsEmpty(false);
     } finally {
       setSubmitting(false);
     }
