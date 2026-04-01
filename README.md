@@ -45,7 +45,7 @@ The `multica` CLI connects your local machine to Multica — authenticate, manag
 ```bash
 # Install
 brew tap multica-ai/tap
-brew install multica-cli
+brew install multica
 
 # Authenticate and start
 multica login
@@ -66,7 +66,7 @@ See the [CLI and Daemon Guide](CLI_AND_DAEMON.md) for the full command reference
                             │
                      ┌──────┴───────┐
                      │ Agent Daemon │  (runs on your machine)
-                     │ Claude / Codex│
+                     │ Claude/Codex │
                      └──────────────┘
 ```
 
