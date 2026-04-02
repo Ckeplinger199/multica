@@ -316,8 +316,12 @@ export class ApiClient {
     });
   }
 
-  async deleteAgent(id: string): Promise<void> {
-    await this.fetch(`/api/agents/${id}`, { method: "DELETE" });
+  async archiveAgent(id: string): Promise<Agent> {
+    return this.fetch(`/api/agents/${id}/archive`, { method: "POST" });
+  }
+
+  async restoreAgent(id: string): Promise<Agent> {
+    return this.fetch(`/api/agents/${id}/restore`, { method: "POST" });
   }
 
   async listRuntimes(params?: { workspace_id?: string }): Promise<AgentRuntime[]> {
