@@ -4,6 +4,7 @@ import { memo } from "react";
 import Link from "next/link";
 import type { Issue } from "@/shared/types";
 import { ActorAvatar } from "@/components/common/actor-avatar";
+import { useWorkspacePath } from "@/features/workspace";
 import { useIssueSelectionStore } from "@/features/issues/stores/selection-store";
 import { PriorityIcon } from "./priority-icon";
 
@@ -15,6 +16,7 @@ function formatDate(date: string): string {
 }
 
 export const ListRow = memo(function ListRow({ issue }: { issue: Issue }) {
+  const wp = useWorkspacePath();
   const selected = useIssueSelectionStore((s) => s.selectedIds.has(issue.id));
   const toggle = useIssueSelectionStore((s) => s.toggle);
 
@@ -39,7 +41,7 @@ export const ListRow = memo(function ListRow({ issue }: { issue: Issue }) {
         />
       </div>
       <Link
-        href={`/issues/${issue.id}`}
+        href={wp(`/issues/${issue.id}`)}
         className="flex flex-1 items-center gap-2 min-w-0"
       >
         <span className="w-16 shrink-0 text-xs text-muted-foreground">

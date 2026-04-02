@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { loginAsDefault, openWorkspaceMenu } from "./helpers";
+import { loginAsDefault, openWorkspaceMenu, DEFAULT_E2E_WORKSPACE } from "./helpers";
 
 test.describe("Authentication", () => {
   test("login page renders correctly", async ({ page }) => {
@@ -27,7 +27,7 @@ test.describe("Authentication", () => {
       localStorage.removeItem("multica_workspace_id");
     });
 
-    await page.goto("/issues");
+    await page.goto(`/${DEFAULT_E2E_WORKSPACE}/issues`);
     await page.waitForURL("**/login", { timeout: 10000 });
   });
 

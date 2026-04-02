@@ -17,7 +17,9 @@ export const useNavigationStore = create<NavigationState>()(
 
       onPathChange: (path: string) => {
         if (!EXCLUDED_PREFIXES.some((prefix) => path.startsWith(prefix))) {
-          set({ lastPath: path });
+          // Strip workspace slug — store only the sub-path
+          const subPath = path.replace(/^\/[^/]+/, "") || "/issues";
+          set({ lastPath: subPath });
         }
       },
     }),

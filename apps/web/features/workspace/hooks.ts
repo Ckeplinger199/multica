@@ -40,3 +40,21 @@ export function useActorName() {
 
   return { getMemberName, getAgentName, getActorName, getActorInitials, getActorAvatarUrl };
 }
+
+/**
+ * Returns a function that prefixes a path with the current workspace slug.
+ * Usage: `const wp = useWorkspacePath(); wp("/issues")` → `"/my-workspace/issues"`
+ */
+export function useWorkspacePath() {
+  const slug = useWorkspaceStore((s) => s.workspace?.slug);
+  return (path: string) => (slug ? `/${slug}${path}` : path);
+}
+
+/**
+ * Strip the first path segment (workspace slug) from a pathname.
+ * `"/my-workspace/issues"` → `"/issues"`
+ * `"/my-workspace"` → `"/"`
+ */
+export function stripWorkspaceSlug(pathname: string): string {
+  return pathname.replace(/^\/[^/]+/, "") || "/";
+}

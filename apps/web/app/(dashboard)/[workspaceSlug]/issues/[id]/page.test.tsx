@@ -60,6 +60,8 @@ vi.mock("@/features/workspace", () => ({
     },
     getActorAvatarUrl: () => null,
   }),
+  useWorkspacePath: () => (path: string) => `/test${path}`,
+  stripWorkspaceSlug: (pathname: string) => pathname.replace(/^\/[^/]+/, "") || "/",
 }));
 
 // Mock issue store — supply a stable full issue object so storeIssue
@@ -357,6 +359,6 @@ describe("IssueDetailPage", () => {
     });
 
     const wsLink = screen.getByText("Test WS");
-    expect(wsLink.closest("a")).toHaveAttribute("href", "/issues");
+    expect(wsLink.closest("a")).toHaveAttribute("href", "/test/issues");
   });
 });

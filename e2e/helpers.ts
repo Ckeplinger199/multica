@@ -3,7 +3,7 @@ import { TestApiClient } from "./fixtures";
 
 const DEFAULT_E2E_NAME = "E2E User";
 const DEFAULT_E2E_EMAIL = "e2e@multica.ai";
-const DEFAULT_E2E_WORKSPACE = "e2e-workspace";
+export const DEFAULT_E2E_WORKSPACE = "e2e-workspace";
 
 /**
  * Log in as the default E2E user and ensure the workspace exists first.
@@ -20,8 +20,8 @@ export async function loginAsDefault(page: Page) {
   await page.evaluate((t) => {
     localStorage.setItem("multica_token", t);
   }, token);
-  await page.goto("/issues");
-  await page.waitForURL("**/issues", { timeout: 10000 });
+  await page.goto(`/${DEFAULT_E2E_WORKSPACE}/issues`);
+  await page.waitForURL(`**/${DEFAULT_E2E_WORKSPACE}/issues`, { timeout: 10000 });
 }
 
 /**

@@ -63,7 +63,7 @@ import { CommentInput } from "./comment-input";
 import { AgentLiveCard, TaskRunHistory } from "./agent-live-card";
 import { api } from "@/shared/api";
 import { useAuthStore } from "@/features/auth";
-import { useWorkspaceStore, useActorName } from "@/features/workspace";
+import { useWorkspaceStore, useActorName, useWorkspacePath } from "@/features/workspace";
 import { useIssueStore } from "@/features/issues";
 import { useIssueTimeline } from "@/features/issues/hooks/use-issue-timeline";
 import { useIssueReactions } from "@/features/issues/hooks/use-issue-reactions";
@@ -169,6 +169,7 @@ interface IssueDetailProps {
 export function IssueDetail({ issueId, onDelete, defaultSidebarOpen = true, layoutId = "multica_issue_detail_layout" }: IssueDetailProps) {
   const id = issueId;
   const router = useRouter();
+  const wp = useWorkspacePath();
   const user = useAuthStore((s) => s.user);
   const workspace = useWorkspaceStore((s) => s.workspace);
   const members = useWorkspaceStore((s) => s.members);
@@ -256,7 +257,7 @@ export function IssueDetail({ issueId, onDelete, defaultSidebarOpen = true, layo
       useIssueStore.getState().removeIssue(issue!.id);
       toast.success("Issue deleted");
       if (onDelete) onDelete();
-      else router.push("/issues");
+      else router.push(wp("/issues"));
     } catch {
       toast.error("Failed to delete issue");
       setDeleting(false);
@@ -276,7 +277,7 @@ export function IssueDetail({ issueId, onDelete, defaultSidebarOpen = true, layo
       <div className="flex flex-1 min-h-0 flex-col items-center justify-center gap-3 text-sm text-muted-foreground">
         <p>This issue does not exist or has been deleted in this workspace.</p>
         {!onDelete && (
-          <Button variant="outline" size="sm" onClick={() => router.push("/issues")}>
+          <Button variant="outline" size="sm" onClick={() => router.push(wp("/issues"))}>
             <ChevronLeft className="mr-1 h-3.5 w-3.5" />
             Back to Issues
           </Button>
@@ -296,7 +297,7 @@ export function IssueDetail({ issueId, onDelete, defaultSidebarOpen = true, layo
             {workspace && (
               <>
                 <Link
-                  href="/issues"
+                  href={wp("/issues")}
                   className="text-muted-foreground hover:text-foreground transition-colors truncate shrink-0"
                 >
                   {workspace.name}
@@ -322,7 +323,7 @@ export function IssueDetail({ issueId, onDelete, defaultSidebarOpen = true, layo
                         size="icon-xs"
                         className="text-muted-foreground"
                         disabled={!prevIssue}
-                        onClick={() => prevIssue && router.push(`/issues/${prevIssue.id}`)}
+                        onClick={() => prevIssue && router.push(wp(`/issues/${prevIssue.id}`))}
                       >
                         <ChevronLeft className="h-4 w-4" />
                       </Button>
@@ -341,7 +342,7 @@ export function IssueDetail({ issueId, onDelete, defaultSidebarOpen = true, layo
                         size="icon-xs"
                         className="text-muted-foreground"
                         disabled={!nextIssue}
-                        onClick={() => nextIssue && router.push(`/issues/${nextIssue.id}`)}
+                        onClick={() => nextIssue && router.push(wp(`/issues/${nextIssue.id}`))}
                       >
                         <ChevronRight className="h-4 w-4" />
                       </Button>

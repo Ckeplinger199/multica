@@ -26,7 +26,10 @@ vi.mock("@/features/workspace", () => ({
   useWorkspaceStore: (selector: (s: any) => any) =>
     selector({
       hydrateWorkspace: mockHydrateWorkspace,
+      workspace: { slug: "test" },
     }),
+  useWorkspacePath: () => (path: string) => `/test${path}`,
+  stripWorkspaceSlug: (pathname: string) => pathname.replace(/^\/[^/]+/, "") || "/",
 }));
 
 // Mock api

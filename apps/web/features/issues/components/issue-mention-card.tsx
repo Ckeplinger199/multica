@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useIssueStore } from "@/features/issues/store";
+import { useWorkspacePath } from "@/features/workspace";
 import { StatusIcon } from "./status-icon";
 
 interface IssueMentionCardProps {
@@ -11,12 +12,13 @@ interface IssueMentionCardProps {
 }
 
 export function IssueMentionCard({ issueId, fallbackLabel }: IssueMentionCardProps) {
+  const wp = useWorkspacePath();
   const issue = useIssueStore((s) => s.issues.find((i) => i.id === issueId));
 
   if (!issue) {
     return (
       <Link
-        href={`/issues/${issueId}`}
+        href={wp(`/issues/${issueId}`)}
         className="text-primary font-medium cursor-pointer hover:underline"
       >
         {fallbackLabel ?? issueId.slice(0, 8)}
@@ -26,7 +28,7 @@ export function IssueMentionCard({ issueId, fallbackLabel }: IssueMentionCardPro
 
   return (
     <Link
-      href={`/issues/${issueId}`}
+      href={wp(`/issues/${issueId}`)}
       className="inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 text-sm hover:bg-accent transition-colors cursor-pointer no-underline"
     >
       <StatusIcon status={issue.status} className="h-3.5 w-3.5" />

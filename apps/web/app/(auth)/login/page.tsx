@@ -51,14 +51,15 @@ function LoginPageContent() {
   const sendCode = useAuthStore((s) => s.sendCode);
   const verifyCode = useAuthStore((s) => s.verifyCode);
   const hydrateWorkspace = useWorkspaceStore((s) => s.hydrateWorkspace);
+  const workspace = useWorkspaceStore((s) => s.workspace);
   const searchParams = useSearchParams();
 
   // Already authenticated — redirect to dashboard
   useEffect(() => {
-    if (!isLoading && user && !searchParams.get("cli_callback")) {
-      router.replace(searchParams.get("next") || "/issues");
+    if (!isLoading && user && workspace && !searchParams.get("cli_callback")) {
+      router.replace(searchParams.get("next") || `/${workspace.slug}/issues`);
     }
-  }, [isLoading, user, router, searchParams]);
+  }, [isLoading, user, workspace, router, searchParams]);
 
   const [step, setStep] = useState<"email" | "code" | "cli_confirm">("email");
   const [email, setEmail] = useState("");
@@ -153,8 +154,9 @@ function LoginPageContent() {
 
         await verifyCode(email, value);
         const wsList = await api.listWorkspaces();
-        await hydrateWorkspace(wsList);
-        router.push(searchParams.get("next") || "/issues");
+        const ws = await hydrateWorkspace(wsList);
+        const defaultPath = ws ? `/${ws.slug}/issues` : "/issues";
+        router.push(searchParams.get("next") || defaultPath);
       } catch (err) {
         setError(
           err instanceof Error ? err.message : "Invalid or expired code"

@@ -29,7 +29,7 @@ import { RichTextEditor, type RichTextEditorRef } from "@/components/common/rich
 import { TitleEditor } from "@/components/common/title-editor";
 import { StatusIcon, PriorityIcon } from "@/features/issues/components";
 import { ALL_STATUSES, STATUS_CONFIG, PRIORITY_ORDER, PRIORITY_CONFIG } from "@/features/issues/config";
-import { useWorkspaceStore, useActorName } from "@/features/workspace";
+import { useWorkspaceStore, useActorName, useWorkspacePath } from "@/features/workspace";
 import { useIssueStore } from "@/features/issues";
 import { useIssueDraftStore } from "@/features/issues/stores/draft-store";
 import { api } from "@/shared/api";
@@ -67,6 +67,7 @@ function PillButton({
 
 export function CreateIssueModal({ onClose, data }: { onClose: () => void; data?: Record<string, unknown> | null }) {
   const router = useRouter();
+  const wp = useWorkspacePath();
   const workspaceName = useWorkspaceStore((s) => s.workspace?.name);
   const members = useWorkspaceStore((s) => s.members);
   const agents = useWorkspaceStore((s) => s.agents);
@@ -150,7 +151,7 @@ export function CreateIssueModal({ onClose, data }: { onClose: () => void; data?
             type="button"
             className="ml-7 mt-2 text-sm text-primary hover:underline cursor-pointer"
             onClick={() => {
-              router.push(`/issues/${issue.id}`);
+              router.push(wp(`/issues/${issue.id}`));
               toast.dismiss(t);
             }}
           >

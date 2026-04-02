@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { ArrowLeft } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -18,6 +19,7 @@ import { useWorkspaceStore } from "@/features/workspace";
 const SLUG_REGEX = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 export function CreateWorkspaceModal({ onClose }: { onClose: () => void }) {
+  const router = useRouter();
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
   const [creating, setCreating] = useState(false);
@@ -43,14 +45,13 @@ export function CreateWorkspaceModal({ onClose }: { onClose: () => void }) {
     if (!canSubmit) return;
     setCreating(true);
     try {
-      const { createWorkspace, switchWorkspace } =
-        useWorkspaceStore.getState();
+      const { createWorkspace } = useWorkspaceStore.getState();
       const ws = await createWorkspace({
         name: name.trim(),
         slug: slug.trim(),
       });
       onClose();
-      await switchWorkspace(ws.id);
+      router.push(`/${ws.slug}/issues`);
     } catch {
       toast.error("Failed to create workspace");
     } finally {

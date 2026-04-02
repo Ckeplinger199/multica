@@ -16,7 +16,7 @@ import {
   SquarePen,
   CircleUser,
 } from "lucide-react";
-import { WorkspaceAvatar } from "@/features/workspace";
+import { WorkspaceAvatar, useWorkspacePath, stripWorkspaceSlug } from "@/features/workspace";
 import { useIssueDraftStore } from "@/features/issues/stores/draft-store";
 import {
   Sidebar,
@@ -71,7 +71,7 @@ export function AppSidebar() {
   const authLogout = useAuthStore((s) => s.logout);
   const workspace = useWorkspaceStore((s) => s.workspace);
   const workspaces = useWorkspaceStore((s) => s.workspaces);
-  const switchWorkspace = useWorkspaceStore((s) => s.switchWorkspace);
+  const wp = useWorkspacePath();
 
   const unreadCount = useInboxStore((s) => s.unreadCount());
 
@@ -132,7 +132,7 @@ export function AppSidebar() {
                         key={ws.id}
                         onClick={() => {
                           if (ws.id !== workspace?.id) {
-                            switchWorkspace(ws.id);
+                            router.push(`/${ws.slug}/issues`);
                           }
                         }}
                       >
@@ -174,12 +174,13 @@ export function AppSidebar() {
             <SidebarGroupContent>
               <SidebarMenu className="gap-0.5">
                 {primaryNav.map((item) => {
-                  const isActive = pathname === item.href;
+                  const subPath = stripWorkspaceSlug(pathname);
+                  const isActive = subPath === item.href;
                   return (
                     <SidebarMenuItem key={item.href}>
                       <SidebarMenuButton
                         isActive={isActive}
-                        render={<Link href={item.href} />}
+                        render={<Link href={wp(item.href)} />}
                         className="text-muted-foreground hover:not-data-active:bg-sidebar-accent/70 data-active:bg-sidebar-accent data-active:text-sidebar-accent-foreground"
                       >
                         <item.icon />
@@ -201,12 +202,13 @@ export function AppSidebar() {
             <SidebarGroupContent>
               <SidebarMenu className="gap-0.5">
                 {workspaceNav.map((item) => {
-                  const isActive = pathname === item.href;
+                  const subPath = stripWorkspaceSlug(pathname);
+                  const isActive = subPath === item.href;
                   return (
                     <SidebarMenuItem key={item.href}>
                       <SidebarMenuButton
                         isActive={isActive}
-                        render={<Link href={item.href} />}
+                        render={<Link href={wp(item.href)} />}
                         className="text-muted-foreground hover:not-data-active:bg-sidebar-accent/70 data-active:bg-sidebar-accent data-active:text-sidebar-accent-foreground"
                       >
                         <item.icon />

@@ -5,7 +5,7 @@ import { useDefaultLayout } from "react-resizable-panels";
 import { useInboxStore } from "@/features/inbox";
 import { IssueDetail, StatusIcon, PriorityIcon } from "@/features/issues/components";
 import { STATUS_CONFIG, PRIORITY_CONFIG } from "@/features/issues/config";
-import { useActorName } from "@/features/workspace";
+import { useActorName, useWorkspaceStore } from "@/features/workspace";
 import { ActorAvatar } from "@/components/common/actor-avatar";
 import { toast } from "sonner";
 import {
@@ -219,9 +219,11 @@ function InboxListItem({
 
 export default function InboxPage() {
   const searchParams = useSearchParams();
+  const workspaceSlug = useWorkspaceStore((s) => s.workspace?.slug);
   const selectedKey = searchParams.get("issue") ?? "";
   const setSelectedKey = (key: string) => {
-    const url = key ? `/inbox?issue=${key}` : "/inbox";
+    const base = workspaceSlug ? `/${workspaceSlug}/inbox` : "/inbox";
+    const url = key ? `${base}?issue=${key}` : base;
     window.history.replaceState(null, "", url);
   };
 

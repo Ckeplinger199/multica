@@ -44,6 +44,8 @@ vi.mock("@/features/workspace", () => ({
     { getState: () => ({ workspace: { id: "ws-1", name: "Test", slug: "test" }, agents: [], members: [] }) },
   ),
   WorkspaceAvatar: ({ name }: { name: string }) => <span>{name.charAt(0)}</span>,
+  useWorkspacePath: () => (path: string) => `/test${path}`,
+  stripWorkspaceSlug: (pathname: string) => pathname.replace(/^\/[^/]+/, "") || "/",
 }));
 
 // Mock WebSocket context

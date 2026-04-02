@@ -15,6 +15,7 @@ import { PriorityPicker, AssigneePicker, DueDatePicker } from "./pickers";
 import { PRIORITY_CONFIG } from "@/features/issues/config";
 import type { CardProperties } from "@/features/issues/stores/view-store";
 import { useViewStore } from "@/features/issues/stores/view-store-context";
+import { useWorkspacePath } from "@/features/workspace";
 
 function formatDate(date: string): string {
   return new Date(date).toLocaleDateString("en-US", {
@@ -169,6 +170,7 @@ export const BoardCardContent = memo(function BoardCardContent({
 });
 
 export const DraggableBoardCard = memo(function DraggableBoardCard({ issue }: { issue: Issue }) {
+  const wp = useWorkspacePath();
   const {
     attributes,
     listeners,
@@ -195,7 +197,7 @@ export const DraggableBoardCard = memo(function DraggableBoardCard({ issue }: { 
       className={isDragging ? "opacity-30" : ""}
     >
       <Link
-        href={`/issues/${issue.id}`}
+        href={wp(`/issues/${issue.id}`)}
         className={`group block transition-colors ${isDragging ? "pointer-events-none" : ""}`}
       >
         <BoardCardContent issue={issue} editable />

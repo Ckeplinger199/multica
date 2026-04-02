@@ -57,7 +57,7 @@ test.describe("Issues", () => {
     await expect(page.locator("text=All Issues")).toBeVisible();
 
     // Navigate to the issue detail
-    const issueLink = page.locator(`a[href="/issues/${issue.id}"]`);
+    const issueLink = page.locator(`a[href$="/issues/${issue.id}"]`);
     await expect(issueLink).toBeVisible({ timeout: 5000 });
     await issueLink.click();
 
