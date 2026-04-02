@@ -16,7 +16,7 @@ import (
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
 )
 
-const maxUploadSize = 10 << 20 // 10 MB
+const maxUploadSize = 100 << 20 // 100 MB
 
 // ---------------------------------------------------------------------------
 // Response types
