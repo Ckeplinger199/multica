@@ -1,0 +1,27 @@
+name: Deploy Frontend to Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      skip_confirmation:
+        description: "Skip confirmation (for automated triggers)"
+        required: false
+        default: "false"
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Install Vercel CLI
+        run: npm install -g vercel@latest
+
+      - name: Promote to Production
+        run: vercel promote --yes --token=${{ secrets.VERCEL_TOKEN }} --scope=indexlabs
+        env:
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}

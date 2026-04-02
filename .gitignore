@@ -34,8 +34,9 @@ apps/web/test-results/
 # context (agent workspace)
 .context
 
-# local settings
-.claude/
+# local settings — ignore .claude/ except skills
+.claude/*
+!.claude/skills/
 
 # feature tracking
 _features/
