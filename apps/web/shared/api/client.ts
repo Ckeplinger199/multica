@@ -291,10 +291,11 @@ export class ApiClient {
   }
 
   // Agents
-  async listAgents(params?: { workspace_id?: string }): Promise<Agent[]> {
+  async listAgents(params?: { workspace_id?: string; include_archived?: boolean }): Promise<Agent[]> {
     const search = new URLSearchParams();
     const wsId = params?.workspace_id ?? this.workspaceId;
     if (wsId) search.set("workspace_id", wsId);
+    if (params?.include_archived) search.set("include_archived", "true");
     return this.fetch(`/api/agents?${search}`);
   }
 

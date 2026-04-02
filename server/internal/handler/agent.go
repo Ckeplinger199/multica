@@ -434,6 +434,10 @@ func (h *Handler) ArchiveAgent(w http.ResponseWriter, r *http.Request) {
 	if !h.canManageAgent(w, r, agent) {
 		return
 	}
+	if agent.ArchivedAt.Valid {
+		writeError(w, http.StatusConflict, "agent is already archived")
+		return
+	}
 
 	userID := requestUserID(r)
 	archived, err := h.Queries.ArchiveAgent(r.Context(), db.ArchiveAgentParams{
@@ -447,7 +451,9 @@ func (h *Handler) ArchiveAgent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Cancel all pending/active tasks for this agent.
-	h.Queries.CancelAgentTasksByAgent(r.Context(), parseUUID(id))
+	if err := h.Queries.CancelAgentTasksByAgent(r.Context(), parseUUID(id)); err != nil {
+		slog.Warn("cancel agent tasks on archive failed", append(logger.RequestAttrs(r), "error", err, "agent_id", id)...)
+	}
 
 	wsID := uuidToString(archived.WorkspaceID)
 	slog.Info("agent archived", append(logger.RequestAttrs(r), "agent_id", id, "workspace_id", wsID)...)
@@ -464,6 +470,10 @@ func (h *Handler) RestoreAgent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !h.canManageAgent(w, r, agent) {
+		return
+	}
+	if !agent.ArchivedAt.Valid {
+		writeError(w, http.StatusConflict, "agent is not archived")
 		return
 	}
 

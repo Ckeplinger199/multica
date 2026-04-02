@@ -314,12 +314,7 @@ func (s *TaskService) ReportProgress(ctx context.Context, taskID string, workspa
 }
 
 // ReconcileAgentStatus checks running task count and sets agent status accordingly.
-// Skips archived agents — their status is irrelevant.
 func (s *TaskService) ReconcileAgentStatus(ctx context.Context, agentID pgtype.UUID) {
-	agent, err := s.Queries.GetAgent(ctx, agentID)
-	if err != nil || agent.ArchivedAt.Valid {
-		return
-	}
 	running, err := s.Queries.CountRunningTasks(ctx, agentID)
 	if err != nil {
 		return
