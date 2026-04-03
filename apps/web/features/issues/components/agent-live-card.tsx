@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, forwardRef } from "react";
 import { Bot, ChevronRight, Loader2, ArrowDown, Brain, AlertCircle, Clock, CheckCircle2, XCircle, Square } from "lucide-react";
 import { api } from "@/shared/api";
 import { useWSEvent } from "@/features/realtime";
@@ -99,9 +99,14 @@ function buildTimeline(msgs: TaskMessagePayload[]): TimelineItem[] {
 interface AgentLiveCardProps {
   issueId: string;
   agentName?: string;
+  /** Called when active task changes (task started or completed/failed/cancelled). */
+  onActiveTaskChange?: (task: AgentTask | null) => void;
+  /** Called to scroll to the live card (used by toast action). */
+  scrollToCard?: () => void;
 }
 
-export function AgentLiveCard({ issueId, agentName }: AgentLiveCardProps) {
+export const AgentLiveCard = forwardRef<HTMLDivElement, AgentLiveCardProps>(
+  function AgentLiveCard({ issueId, agentName, onActiveTaskChange, scrollToCard }, ref) {
   const { getActorName } = useActorName();
   const [activeTask, setActiveTask] = useState<AgentTask | null>(null);
   const [items, setItems] = useState<TimelineItem[]>([]);
@@ -212,6 +217,36 @@ export function AgentLiveCard({ issueId, agentName }: AgentLiveCardProps) {
     }, [issueId, activeTask]),
   );
 
+  // Notify parent of active task changes
+  useEffect(() => {
+    onActiveTaskChange?.(activeTask);
+  }, [activeTask, onActiveTaskChange]);
+
+  // Show toast when a new task starts (only on dispatch, not on initial mount)
+  const hasShownToast = useRef(false);
+  const isInitialMount = useRef(true);
+  useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      if (activeTask) hasShownToast.current = true;
+      return;
+    }
+    if (activeTask && !hasShownToast.current) {
+      hasShownToast.current = true;
+      const name = (activeTask.agent_id ? getActorName("agent", activeTask.agent_id) : agentName) ?? "Agent";
+      toast(`${name} is working`, {
+        description: "Task started",
+        action: scrollToCard
+          ? { label: "View live log", onClick: scrollToCard }
+          : undefined,
+        duration: 5000,
+      });
+    }
+    if (!activeTask) {
+      hasShownToast.current = false;
+    }
+  }, [activeTask, agentName, getActorName, scrollToCard]);
+
   // Elapsed time
   useEffect(() => {
     if (!activeTask?.started_at && !activeTask?.dispatched_at) return;
@@ -250,7 +285,7 @@ export function AgentLiveCard({ issueId, agentName }: AgentLiveCardProps) {
   const toolCount = items.filter((i) => i.type === "tool_use").length;
 
   return (
-    <div className="rounded-lg border border-info/20 bg-info/5">
+    <div ref={ref} className="rounded-lg border border-info/20 bg-info/5">
       {/* Header */}
       <div className="flex items-center gap-2 px-3 py-2">
         <div className="flex items-center justify-center h-5 w-5 rounded-full bg-info/10 text-info shrink-0">
@@ -310,7 +345,7 @@ export function AgentLiveCard({ issueId, agentName }: AgentLiveCardProps) {
       )}
     </div>
   );
-}
+});
 
 // ─── TaskRunHistory (past execution logs) ──────────────────────────────────
 
@@ -552,5 +587,78 @@ function ErrorRow({ item }: { item: TimelineItem }) {
       <AlertCircle className="h-3 w-3 shrink-0 text-destructive mt-0.5" />
       <span className="text-destructive">{item.content}</span>
     </div>
+  );
+}
+
+// ─── AgentFloatingPill (visible when live card scrolls out of view) ────────
+
+interface AgentFloatingPillProps {
+  /** Ref to the AgentLiveCard DOM element. */
+  liveCardRef: React.RefObject<HTMLDivElement | null>;
+  /** The currently active task (null = no task running). */
+  activeTask: AgentTask | null;
+  /** Agent display name. */
+  agentName?: string;
+  /** Ref to the scroll container (for IntersectionObserver root). */
+  scrollContainerRef: React.RefObject<HTMLDivElement | null>;
+}
+
+export function AgentFloatingPill({
+  liveCardRef,
+  activeTask,
+  agentName,
+  scrollContainerRef,
+}: AgentFloatingPillProps) {
+  const [isCardVisible, setIsCardVisible] = useState(true);
+  const [elapsed, setElapsed] = useState("");
+
+  // Track live card visibility via IntersectionObserver
+  useEffect(() => {
+    const card = liveCardRef.current;
+    const root = scrollContainerRef.current;
+    if (!card || !root) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]) setIsCardVisible(entries[0].isIntersecting);
+      },
+      { root, threshold: 0 },
+    );
+
+    observer.observe(card);
+    return () => observer.disconnect();
+  }, [liveCardRef, scrollContainerRef, activeTask]);
+
+  // Elapsed time
+  useEffect(() => {
+    if (!activeTask?.started_at && !activeTask?.dispatched_at) return;
+    const ref = activeTask.started_at ?? activeTask.dispatched_at!;
+    setElapsed(formatElapsed(ref));
+    const interval = setInterval(() => setElapsed(formatElapsed(ref)), 1000);
+    return () => clearInterval(interval);
+  }, [activeTask?.started_at, activeTask?.dispatched_at]);
+
+  const handleClick = useCallback(() => {
+    liveCardRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [liveCardRef]);
+
+  // Only show when there's an active task AND the live card is scrolled out of view
+  if (!activeTask || isCardVisible) return null;
+
+  const name = agentName ?? "Agent";
+
+  return (
+    <button
+      onClick={handleClick}
+      className="sticky bottom-2 z-10 flex w-full items-center gap-2 rounded-lg border border-info/30 bg-info/10 backdrop-blur-sm px-3 py-2 text-xs transition-all hover:bg-info/15 hover:border-info/40 cursor-pointer shadow-sm"
+    >
+      <div className="flex items-center justify-center h-5 w-5 rounded-full bg-info/15 text-info shrink-0">
+        <Bot className="h-3 w-3" />
+      </div>
+      <Loader2 className="h-3 w-3 animate-spin text-info shrink-0" />
+      <span className="font-medium truncate">{name} is working</span>
+      <span className="ml-auto text-muted-foreground tabular-nums shrink-0">{elapsed}</span>
+      <ArrowDown className="h-3 w-3 text-muted-foreground shrink-0 rotate-180" />
+    </button>
   );
 }

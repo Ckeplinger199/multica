@@ -62,7 +62,7 @@ import { ALL_STATUSES, STATUS_CONFIG, PRIORITY_ORDER, PRIORITY_CONFIG } from "@/
 import { StatusIcon, PriorityIcon, DueDatePicker, AssigneePicker, canAssignAgent } from "@/features/issues/components";
 import { CommentCard } from "./comment-card";
 import { CommentInput } from "./comment-input";
-import { AgentLiveCard, TaskRunHistory } from "./agent-live-card";
+import { AgentLiveCard, TaskRunHistory, AgentFloatingPill } from "./agent-live-card";
 import { api } from "@/shared/api";
 import { useAuthStore } from "@/features/auth";
 import { useWorkspaceStore, useActorName } from "@/features/workspace";
@@ -203,6 +203,13 @@ export function IssueDetail({ issueId, onDelete, defaultSidebarOpen = true, layo
   // Single source of truth: read issue directly from global store
   const issue = useIssueStore((s) => s.issues.find((i) => i.id === id)) ?? null;
   const [issueLoading, setIssueLoading] = useState(!issue);
+
+  // Agent live card visibility tracking
+  const liveCardRef = useRef<HTMLDivElement>(null);
+  const [liveActiveTask, setLiveActiveTask] = useState<import("@/shared/types/agent").AgentTask | null>(null);
+  const scrollToLiveCard = useCallback(() => {
+    liveCardRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, []);
 
   // If issue isn't in the store yet, fetch and upsert it
   useEffect(() => {
@@ -773,8 +780,11 @@ export function IssueDetail({ issueId, onDelete, defaultSidebarOpen = true, layo
             {/* Agent live output */}
             <div className="mt-4">
               <AgentLiveCard
+                ref={liveCardRef}
                 issueId={id}
                 agentName={issue.assignee_type === "agent" && issue.assignee_id ? getActorName("agent", issue.assignee_id) : undefined}
+                onActiveTaskChange={setLiveActiveTask}
+                scrollToCard={scrollToLiveCard}
               />
             </div>
 
@@ -912,6 +922,14 @@ export function IssueDetail({ issueId, onDelete, defaultSidebarOpen = true, layo
                 });
               })()}
             </div>
+
+            {/* Floating pill when agent live card is scrolled out of view */}
+            <AgentFloatingPill
+              liveCardRef={liveCardRef}
+              activeTask={liveActiveTask}
+              agentName={issue.assignee_type === "agent" && issue.assignee_id ? getActorName("agent", issue.assignee_id) : undefined}
+              scrollContainerRef={scrollContainerRef}
+            />
 
             {/* Bottom comment input — no avatar, full width */}
             <div className="mt-4">
