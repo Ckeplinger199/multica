@@ -84,8 +84,15 @@ func LoadConfig(overrides Overrides) (Config, error) {
 			Model: strings.TrimSpace(os.Getenv("MULTICA_CODEX_MODEL")),
 		}
 	}
+	opencodePath := envOrDefault("MULTICA_OPENCODE_PATH", "opencode")
+	if _, err := exec.LookPath(opencodePath); err == nil {
+		agents["opencode"] = AgentEntry{
+			Path:  opencodePath,
+			Model: strings.TrimSpace(os.Getenv("MULTICA_OPENCODE_MODEL")),
+		}
+	}
 	if len(agents) == 0 {
-		return Config{}, fmt.Errorf("no agent CLI found: install claude or codex and ensure it is on PATH")
+		return Config{}, fmt.Errorf("no agent CLI found: install claude, codex, or opencode and ensure it is on PATH")
 	}
 
 	// Host info

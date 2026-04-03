@@ -27,6 +27,17 @@ func TestNewReturnsCodexBackend(t *testing.T) {
 	}
 }
 
+func TestNewReturnsOpencodeBackend(t *testing.T) {
+	t.Parallel()
+	b, err := New("opencode", Config{ExecutablePath: "/nonexistent/opencode"})
+	if err != nil {
+		t.Fatalf("New(opencode) error: %v", err)
+	}
+	if _, ok := b.(*opencodeBackend); !ok {
+		t.Fatalf("expected *opencodeBackend, got %T", b)
+	}
+}
+
 func TestNewRejectsUnknownType(t *testing.T) {
 	t.Parallel()
 	_, err := New("gpt", Config{})
