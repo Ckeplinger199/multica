@@ -5,6 +5,7 @@ import { useAuthStore } from "./store";
 import { useWorkspaceStore } from "@/features/workspace";
 import { api } from "@/shared/api";
 import { createLogger } from "@/shared/logger";
+import { identifyUser, resetUser } from "@/features/analytics";
 import { setLoggedInCookie, clearLoggedInCookie } from "./auth-cookie";
 
 const logger = createLogger("auth");
@@ -32,6 +33,11 @@ export function AuthInitializer({ children }: { children: ReactNode }) {
     Promise.all([mePromise, wsPromise])
       .then(([user, wsList]) => {
         setLoggedInCookie();
+        identifyUser(user.id, {
+          $name: user.name,
+          $email: user.email,
+          created_at: user.created_at,
+        });
         useAuthStore.setState({ user, isLoading: false });
         useWorkspaceStore.getState().hydrateWorkspace(wsList, wsId);
       })
@@ -42,6 +48,7 @@ export function AuthInitializer({ children }: { children: ReactNode }) {
         localStorage.removeItem("multica_token");
         localStorage.removeItem("multica_workspace_id");
         clearLoggedInCookie();
+        resetUser();
         useAuthStore.setState({ user: null, isLoading: false });
       });
   }, []);

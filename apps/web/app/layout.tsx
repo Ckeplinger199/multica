@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { AuthInitializer } from "@/features/auth";
 import { WSProvider } from "@/features/realtime";
 import { ModalRegistry } from "@/features/modals";
+import { AnalyticsProvider } from "@/features/analytics";
 import "./globals.css";
 
 const geist = Geist({ subsets: ["latin"], variable: "--font-sans" });
@@ -67,11 +68,13 @@ export default async function RootLayout({
     >
       <body className="h-full overflow-hidden">
         <ThemeProvider>
+          <AnalyticsProvider>
           <AuthInitializer>
             <WSProvider>{children}</WSProvider>
           </AuthInitializer>
           <ModalRegistry />
           <Toaster />
+          </AnalyticsProvider>
         </ThemeProvider>
       </body>
     </html>

@@ -21,6 +21,7 @@ import {
   InputOTPGroup,
   InputOTPSlot,
 } from "@/components/ui/input-otp";
+import { track, AnalyticsEvents } from "@/features/analytics";
 import type { User } from "@/shared/types";
 
 function validateCliCallback(cliCallback: string): boolean {
@@ -118,6 +119,9 @@ function LoginPageContent() {
     setSubmitting(true);
     try {
       await sendCode(email);
+      track(AnalyticsEvents.LOGIN_STARTED, {
+        email_domain: email.split("@")[1],
+      });
       setStep("code");
       setCode("");
       setCooldown(10);

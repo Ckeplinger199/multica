@@ -7,6 +7,7 @@ import { useInboxStore } from "@/features/inbox";
 import { useRuntimeStore } from "@/features/runtimes";
 import { toast } from "sonner";
 import { api } from "@/shared/api";
+import { track, registerSuperProperties, AnalyticsEvents } from "@/features/analytics";
 import { createLogger } from "@/shared/logger";
 
 const logger = createLogger("workspace-store");
@@ -94,11 +95,17 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
     logger.info("hydrate complete", "members:", nextMembers.length, "agents:", nextAgents.length);
     set({ members: nextMembers, agents: nextAgents, skills: nextSkills });
 
+    registerSuperProperties({
+      workspace_id: nextWorkspace.id,
+      workspace_name: nextWorkspace.name,
+    });
+
     return nextWorkspace;
   },
 
   switchWorkspace: async (workspaceId) => {
     logger.info("switching to", workspaceId);
+    track(AnalyticsEvents.WORKSPACE_SWITCHED);
     const { workspaces, hydrateWorkspace } = get();
     const ws = workspaces.find((item) => item.id === workspaceId);
     if (!ws) return;
@@ -201,6 +208,7 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
   createWorkspace: async (data) => {
     const ws = await api.createWorkspace(data);
     set((state) => ({ workspaces: [...state.workspaces, ws] }));
+    track(AnalyticsEvents.WORKSPACE_CREATED);
     return ws;
   },
 

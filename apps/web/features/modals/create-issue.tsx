@@ -33,6 +33,7 @@ import { useWorkspaceStore, useActorName } from "@/features/workspace";
 import { useIssueStore } from "@/features/issues";
 import { useIssueDraftStore } from "@/features/issues/stores/draft-store";
 import { api } from "@/shared/api";
+import { track, incrementUserProperty, AnalyticsEvents } from "@/features/analytics";
 import { useFileUpload } from "@/shared/hooks/use-file-upload";
 import { FileUploadButton } from "@/components/common/file-upload-button";
 import { ActorAvatar } from "@/components/common/actor-avatar";
@@ -132,6 +133,14 @@ export function CreateIssueModal({ onClose, data }: { onClose: () => void; data?
         due_date: dueDate || undefined,
       });
       useIssueStore.getState().addIssue(issue);
+      track(AnalyticsEvents.ISSUE_CREATED, {
+        has_description: Boolean(descEditorRef.current?.getMarkdown()?.trim()),
+        priority,
+        has_assignee: Boolean(assigneeType && assigneeId),
+        assignee_type: assigneeType ?? null,
+        has_due_date: Boolean(dueDate),
+      });
+      incrementUserProperty("total_issues_created");
       clearDraft();
       onClose();
       toast.custom((t) => (
