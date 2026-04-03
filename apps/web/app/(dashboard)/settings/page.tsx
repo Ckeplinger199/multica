@@ -3,6 +3,7 @@
 import { User, Palette, Key, Settings, Users, FolderGit2 } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useWorkspaceStore } from "@/features/workspace";
+import { track, AnalyticsEvents } from "@/features/analytics";
 import { AccountTab } from "./_components/account-tab";
 import { AppearanceTab } from "./_components/general-tab";
 import { TokensTab } from "./_components/tokens-tab";
@@ -26,7 +27,7 @@ export default function SettingsPage() {
   const workspaceName = useWorkspaceStore((s) => s.workspace?.name);
 
   return (
-    <Tabs defaultValue="profile" orientation="vertical" className="flex-1 min-h-0 gap-0">
+    <Tabs defaultValue="profile" orientation="vertical" className="flex-1 min-h-0 gap-0" onValueChange={(tab) => track(AnalyticsEvents.SETTINGS_OPENED, { tab })}>
       {/* Left nav */}
       <div className="w-52 shrink-0 border-r overflow-y-auto p-4">
         <h1 className="text-sm font-semibold mb-4 px-2">Settings</h1>

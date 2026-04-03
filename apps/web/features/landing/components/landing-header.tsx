@@ -5,6 +5,7 @@ import { MulticaIcon } from "@/components/multica-icon";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/features/auth";
 import { useLocale } from "../i18n";
+import { track, AnalyticsEvents } from "@/features/analytics";
 import { GitHubMark, githubUrl, headerButtonClassName } from "./shared";
 
 export function LandingHeader({
@@ -49,6 +50,7 @@ export function LandingHeader({
             target="_blank"
             rel="noreferrer"
             className={headerButtonClassName("ghost", variant)}
+            onClick={() => track(AnalyticsEvents.CTA_CLICKED, { button_name: "github", section: "header" })}
           >
             <GitHubMark className="size-3.5" />
             {t.header.github}
@@ -56,6 +58,7 @@ export function LandingHeader({
           <Link
             href={user ? "/issues" : "/login"}
             className={headerButtonClassName("solid", variant)}
+            onClick={() => track(AnalyticsEvents.CTA_CLICKED, { button_name: user ? "dashboard" : "login", section: "header" })}
           >
             {user ? t.header.dashboard : t.header.login}
           </Link>

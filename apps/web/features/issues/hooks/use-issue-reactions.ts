@@ -7,6 +7,7 @@ import type {
   IssueReactionRemovedPayload,
 } from "@/shared/types";
 import { api } from "@/shared/api";
+import { track, AnalyticsEvents } from "@/features/analytics";
 import { toast } from "sonner";
 import { useWSEvent, useWSReconnect } from "@/features/realtime";
 
@@ -98,6 +99,7 @@ export function useIssueReactions(issueId: string, userId?: string) {
         setReactions((prev) => [...prev, temp]);
         try {
           const reaction = await api.addIssueReaction(issueId, emoji);
+          track(AnalyticsEvents.ISSUE_REACTION_ADDED, { emoji });
           setReactions((prev) => prev.map((r) => (r.id === temp.id ? reaction : r)));
         } catch {
           setReactions((prev) => prev.filter((r) => r.id !== temp.id));

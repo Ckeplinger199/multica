@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { CalendarDays } from "lucide-react";
 import type { UpdateIssueRequest } from "@/shared/types";
+import { track, AnalyticsEvents } from "@/features/analytics";
 import { Calendar } from "@/components/ui/calendar";
 import {
   Popover,
@@ -45,6 +46,7 @@ export function DueDatePicker({
           mode="single"
           selected={date}
           onSelect={(d: Date | undefined) => {
+            track(AnalyticsEvents.ISSUE_DUE_DATE_CHANGED, { has_due_date: Boolean(d) });
             onUpdate({ due_date: d ? d.toISOString() : null });
             setOpen(false);
           }}

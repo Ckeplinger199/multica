@@ -6,6 +6,7 @@ import type { Agent, IssueAssigneeType, UpdateIssueRequest } from "@/shared/type
 import { useAuthStore } from "@/features/auth";
 import { useWorkspaceStore, useActorName } from "@/features/workspace";
 import { ActorAvatar } from "@/components/common/actor-avatar";
+import { track, AnalyticsEvents } from "@/features/analytics";
 import {
   PropertyPicker,
   PickerItem,
@@ -95,6 +96,7 @@ export function AssigneePicker({
       <PickerItem
         selected={!assigneeType && !assigneeId}
         onClick={() => {
+          track(AnalyticsEvents.ISSUE_ASSIGNEE_CHANGED, { assignee_type: null });
           onUpdate({ assignee_type: null, assignee_id: null });
           setOpen(false);
         }}
@@ -111,6 +113,7 @@ export function AssigneePicker({
               key={m.user_id}
               selected={isSelected("member", m.user_id)}
               onClick={() => {
+                track(AnalyticsEvents.ISSUE_ASSIGNEE_CHANGED, { assignee_type: "member" });
                 onUpdate({
                   assignee_type: "member",
                   assignee_id: m.user_id,
@@ -137,6 +140,7 @@ export function AssigneePicker({
                 disabled={!allowed}
                 onClick={() => {
                   if (!allowed) return;
+                  track(AnalyticsEvents.ISSUE_ASSIGNEE_CHANGED, { assignee_type: "agent", is_agent: true });
                   onUpdate({
                     assignee_type: "agent",
                     assignee_id: a.id,

@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { ArrowUp, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ContentEditor, type ContentEditorRef } from "@/features/editor";
+import { track, AnalyticsEvents } from "@/features/analytics";
 import { FileUploadButton } from "@/components/common/file-upload-button";
 import { useFileUpload } from "@/shared/hooks/use-file-upload";
 
@@ -28,6 +29,7 @@ function CommentInput({ issueId, onSubmit }: CommentInputProps) {
     setSubmitting(true);
     try {
       await onSubmit(content);
+      track(AnalyticsEvents.ISSUE_COMMENT_ADDED, { content_length: content.length });
       editorRef.current?.clearContent();
       setIsEmpty(true);
     } finally {

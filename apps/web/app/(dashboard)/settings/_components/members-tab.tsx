@@ -39,6 +39,7 @@ import { toast } from "sonner";
 import { useAuthStore } from "@/features/auth";
 import { useWorkspaceStore } from "@/features/workspace";
 import { api } from "@/shared/api";
+import { track, AnalyticsEvents } from "@/features/analytics";
 
 const roleConfig: Record<MemberRole, { label: string; icon: typeof Crown; description: string }> = {
   owner: { label: "Owner", icon: Crown, description: "Full access, manage all settings" },
@@ -169,6 +170,7 @@ export function MembersTab() {
       setInviteEmail("");
       setInviteRole("member");
       await refreshMembers();
+      track(AnalyticsEvents.MEMBER_INVITED, { role: inviteRole });
       toast.success("Member added");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed to add member");

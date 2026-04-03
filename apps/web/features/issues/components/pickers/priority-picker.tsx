@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { IssuePriority, UpdateIssueRequest } from "@/shared/types";
 import { PRIORITY_ORDER, PRIORITY_CONFIG } from "@/features/issues/config";
+import { track, AnalyticsEvents } from "@/features/analytics";
 import { PriorityIcon } from "../priority-icon";
 import { PropertyPicker, PickerItem } from "./property-picker";
 
@@ -39,6 +40,7 @@ export function PriorityPicker({
             key={p}
             selected={p === priority}
             onClick={() => {
+              track(AnalyticsEvents.ISSUE_PRIORITY_CHANGED, { from: priority, to: p });
               onUpdate({ priority: p });
               setOpen(false);
             }}

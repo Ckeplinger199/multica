@@ -24,6 +24,7 @@ import { ALL_STATUSES, STATUS_CONFIG, PRIORITY_ORDER, PRIORITY_CONFIG } from "@/
 import { useIssueStore } from "@/features/issues/store";
 import { useIssueSelectionStore } from "@/features/issues/stores/selection-store";
 import { api } from "@/shared/api";
+import { track, AnalyticsEvents } from "@/features/analytics";
 import { StatusIcon } from "./status-icon";
 import { PriorityIcon } from "./priority-icon";
 import { AssigneePicker } from "./pickers";
@@ -50,6 +51,7 @@ export function BatchActionToolbar() {
       for (const id of ids) {
         useIssueStore.getState().updateIssue(id, updates);
       }
+      track(AnalyticsEvents.ISSUE_BATCH_ACTION, { action_type: "update", issue_count: count, ...updates });
       toast.success(`Updated ${count} issue${count > 1 ? "s" : ""}`);
     } catch {
       toast.error("Failed to update issues");
@@ -68,6 +70,7 @@ export function BatchActionToolbar() {
       for (const id of ids) {
         useIssueStore.getState().removeIssue(id);
       }
+      track(AnalyticsEvents.ISSUE_BATCH_ACTION, { action_type: "delete", issue_count: count });
       clear();
       toast.success(`Deleted ${count} issue${count > 1 ? "s" : ""}`);
     } catch {

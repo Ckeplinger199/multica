@@ -73,6 +73,7 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { api } from "@/shared/api";
+import { track, incrementUserProperty, AnalyticsEvents } from "@/features/analytics";
 import { useAuthStore } from "@/features/auth";
 import { useWorkspaceStore } from "@/features/workspace";
 import { useRuntimeStore } from "@/features/runtimes";
@@ -1575,6 +1576,8 @@ export default function AgentsPage() {
 
   const handleCreate = async (data: CreateAgentRequest) => {
     const agent = await api.createAgent(data);
+    track(AnalyticsEvents.AGENT_CREATED, { visibility: data.visibility });
+    incrementUserProperty("total_agents_created");
     await refreshAgents();
     setSelectedId(agent.id);
   };

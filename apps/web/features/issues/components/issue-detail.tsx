@@ -71,6 +71,7 @@ import { useIssueTimeline } from "@/features/issues/hooks/use-issue-timeline";
 import { useIssueReactions } from "@/features/issues/hooks/use-issue-reactions";
 import { useIssueSubscribers } from "@/features/issues/hooks/use-issue-subscribers";
 import { ReactionBar } from "@/components/common/reaction-bar";
+import { track, AnalyticsEvents } from "@/features/analytics";
 import { useFileUpload } from "@/shared/hooks/use-file-upload";
 import { timeAgo } from "@/shared/utils";
 
@@ -298,6 +299,7 @@ export function IssueDetail({ issueId, onDelete, defaultSidebarOpen = true, layo
     try {
       await api.deleteIssue(issue!.id);
       useIssueStore.getState().removeIssue(issue!.id);
+      track(AnalyticsEvents.ISSUE_DELETED);
       toast.success("Issue deleted");
       if (onDelete) onDelete();
       else router.push("/issues");

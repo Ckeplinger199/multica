@@ -34,6 +34,7 @@ import {
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { api } from "@/shared/api";
+import { track, AnalyticsEvents } from "@/features/analytics";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -247,6 +248,7 @@ export default function InboxPage() {
 
   // Click-to-read: select + auto-mark-read
   const handleSelect = async (item: InboxItem) => {
+    track(AnalyticsEvents.NOTIFICATION_CLICKED, { notification_type: item.type, related_issue_id: item.issue_id });
     setSelectedKey(item.issue_id ?? item.id);
     if (!item.read) {
       useInboxStore.getState().markRead(item.id);

@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useAuthStore } from "@/features/auth";
 import { useLocale } from "../i18n";
+import { track, AnalyticsEvents } from "@/features/analytics";
 import {
   ClaudeCodeLogo,
   CodexLogo,
@@ -37,7 +38,7 @@ export function LandingHero() {
             </p>
 
             <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-              <Link href={user ? "/issues" : "/login"} className={heroButtonClassName("solid")}>
+              <Link href={user ? "/issues" : "/login"} className={heroButtonClassName("solid")} onClick={() => track(AnalyticsEvents.CTA_CLICKED, { button_name: user ? "dashboard" : "get_started", section: "hero" })}>
                 {user ? t.header.dashboard : t.hero.cta}
               </Link>
               <Link
@@ -45,6 +46,7 @@ export function LandingHero() {
                 target="_blank"
                 rel="noreferrer"
                 className={heroButtonClassName("ghost")}
+                onClick={() => track(AnalyticsEvents.CTA_CLICKED, { button_name: "github", section: "hero" })}
               >
                 <GitHubMark className="size-4" />
                 GitHub
