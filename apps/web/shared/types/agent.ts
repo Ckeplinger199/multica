@@ -71,6 +71,7 @@ export interface Agent {
   skills: Skill[];
   tools: AgentTool[];
   triggers: AgentTrigger[];
+  archived_at: string | null;
   created_at: string;
   updated_at: string;
 }

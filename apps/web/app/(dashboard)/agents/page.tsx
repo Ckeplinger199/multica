@@ -28,6 +28,8 @@ import {
   Globe,
   Lock,
   Settings,
+  Archive,
+  ArchiveRestore,
   Camera,
 } from "lucide-react";
 import type {
@@ -328,13 +330,14 @@ function AgentListItem({
   onClick: () => void;
 }) {
   const st = statusConfig[agent.status];
+  const isArchived = !!agent.archived_at;
 
   return (
     <button
       onClick={onClick}
       className={`flex w-full items-center gap-3 px-4 py-3 text-left transition-colors ${
         isSelected ? "bg-accent" : "hover:bg-accent/50"
-      }`}
+      } ${isArchived ? "opacity-60" : ""}`}
     >
       <ActorAvatar actorType="agent" actorId={agent.id} size={32} className="rounded-lg" />
 
@@ -348,8 +351,17 @@ function AgentListItem({
           )}
         </div>
         <div className="flex items-center gap-1.5 mt-0.5">
-          <span className={`h-1.5 w-1.5 rounded-full ${st.dot}`} />
-          <span className={`text-xs ${st.color}`}>{st.label}</span>
+          {isArchived ? (
+            <>
+              <Archive className="h-3 w-3 text-muted-foreground" />
+              <span className="text-xs text-muted-foreground">Archived</span>
+            </>
+          ) : (
+            <>
+              <span className={`h-1.5 w-1.5 rounded-full ${st.dot}`} />
+              <span className={`text-xs ${st.color}`}>{st.label}</span>
+            </>
+          )}
         </div>
       </div>
     </button>
@@ -1347,16 +1359,21 @@ function AgentDetail({
   runtimes,
   onUpdate,
   onDelete,
+  onArchive,
+  onUnarchive,
 }: {
   agent: Agent;
   runtimes: RuntimeDevice[];
   onUpdate: (id: string, data: Partial<Agent>) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
+  onArchive: (id: string) => Promise<void>;
+  onUnarchive: (id: string) => Promise<void>;
 }) {
   const st = statusConfig[agent.status];
   const runtimeDevice = getRuntimeDevice(agent, runtimes);
   const [activeTab, setActiveTab] = useState<DetailTab>("instructions");
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const isArchived = !!agent.archived_at;
 
   return (
     <div className="flex h-full flex-col">
@@ -1366,10 +1383,17 @@ function AgentDetail({
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <h2 className="text-sm font-semibold truncate">{agent.name}</h2>
-            <span className={`flex items-center gap-1.5 text-xs ${st.color}`}>
-              <span className={`h-1.5 w-1.5 rounded-full ${st.dot}`} />
-              {st.label}
-            </span>
+            {isArchived ? (
+              <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                <Archive className="h-3 w-3" />
+                Archived
+              </span>
+            ) : (
+              <span className={`flex items-center gap-1.5 text-xs ${st.color}`}>
+                <span className={`h-1.5 w-1.5 rounded-full ${st.dot}`} />
+                {st.label}
+              </span>
+            )}
             <span className="flex items-center gap-1 rounded-md bg-muted px-1.5 py-0.5 text-xs font-medium text-muted-foreground">
               {agent.runtime_mode === "cloud" ? (
                 <Cloud className="h-3 w-3" />
@@ -1389,6 +1413,17 @@ function AgentDetail({
             <MoreHorizontal className="h-4 w-4 text-muted-foreground" />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
+            {isArchived ? (
+              <DropdownMenuItem onClick={() => onUnarchive(agent.id)}>
+                <ArchiveRestore className="h-3.5 w-3.5" />
+                Unarchive Agent
+              </DropdownMenuItem>
+            ) : (
+              <DropdownMenuItem onClick={() => onArchive(agent.id)}>
+                <Archive className="h-3.5 w-3.5" />
+                Archive Agent
+              </DropdownMenuItem>
+            )}
             <DropdownMenuItem
               className="text-destructive"
               onClick={() => setConfirmDelete(true)}
@@ -1526,6 +1561,16 @@ export default function AgentsPage() {
     await refreshAgents();
   };
 
+  const handleArchive = async (id: string) => {
+    await api.archiveAgent(id);
+    await refreshAgents();
+  };
+
+  const handleUnarchive = async (id: string) => {
+    await api.unarchiveAgent(id);
+    await refreshAgents();
+  };
+
   const handleDelete = async (id: string) => {
     await api.deleteAgent(id);
     if (selectedId === id) {
@@ -1604,6 +1649,8 @@ export default function AgentsPage() {
             runtimes={runtimes}
             onUpdate={handleUpdate}
             onDelete={handleDelete}
+            onArchive={handleArchive}
+            onUnarchive={handleUnarchive}
           />
         ) : (
           <div className="flex h-full flex-col items-center justify-center text-muted-foreground">

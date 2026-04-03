@@ -37,6 +37,16 @@ UPDATE agent SET
 WHERE id = $1
 RETURNING *;
 
+-- name: ArchiveAgent :one
+UPDATE agent SET archived_at = now(), updated_at = now()
+WHERE id = $1
+RETURNING *;
+
+-- name: UnarchiveAgent :one
+UPDATE agent SET archived_at = NULL, updated_at = now()
+WHERE id = $1
+RETURNING *;
+
 -- name: DeleteAgent :exec
 DELETE FROM agent WHERE id = $1;
 

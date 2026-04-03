@@ -315,6 +315,14 @@ export class ApiClient {
     });
   }
 
+  async archiveAgent(id: string): Promise<Agent> {
+    return this.fetch(`/api/agents/${id}/archive`, { method: "POST" });
+  }
+
+  async unarchiveAgent(id: string): Promise<Agent> {
+    return this.fetch(`/api/agents/${id}/unarchive`, { method: "POST" });
+  }
+
   async deleteAgent(id: string): Promise<void> {
     await this.fetch(`/api/agents/${id}`, { method: "DELETE" });
   }

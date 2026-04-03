@@ -30,6 +30,7 @@ type AgentResponse struct {
 	Skills             []SkillResponse `json:"skills"`
 	Tools              any             `json:"tools"`
 	Triggers           any             `json:"triggers"`
+	ArchivedAt         *string         `json:"archived_at"`
 	CreatedAt          string          `json:"created_at"`
 	UpdatedAt          string          `json:"updated_at"`
 }
@@ -76,6 +77,7 @@ func agentToResponse(a db.Agent) AgentResponse {
 		Skills:             []SkillResponse{},
 		Tools:              tools,
 		Triggers:           triggers,
+		ArchivedAt:         timestampToPtr(a.ArchivedAt),
 		CreatedAt:          timestampToString(a.CreatedAt),
 		UpdatedAt:          timestampToString(a.UpdatedAt),
 	}
@@ -422,6 +424,56 @@ func (h *Handler) UpdateAgent(w http.ResponseWriter, r *http.Request) {
 
 	resp := agentToResponse(agent)
 	slog.Info("agent updated", append(logger.RequestAttrs(r), "agent_id", id, "workspace_id", uuidToString(agent.WorkspaceID))...)
+	userID := requestUserID(r)
+	actorType, actorID := h.resolveActor(r, userID, uuidToString(agent.WorkspaceID))
+	h.publish(protocol.EventAgentStatus, uuidToString(agent.WorkspaceID), actorType, actorID, map[string]any{"agent": resp})
+	writeJSON(w, http.StatusOK, resp)
+}
+
+func (h *Handler) ArchiveAgent(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	agent, ok := h.loadAgentForUser(w, r, id)
+	if !ok {
+		return
+	}
+	if !h.canManageAgent(w, r, agent) {
+		return
+	}
+
+	agent, err := h.Queries.ArchiveAgent(r.Context(), parseUUID(id))
+	if err != nil {
+		slog.Warn("archive agent failed", append(logger.RequestAttrs(r), "error", err, "agent_id", id)...)
+		writeError(w, http.StatusInternalServerError, "failed to archive agent")
+		return
+	}
+
+	resp := agentToResponse(agent)
+	slog.Info("agent archived", append(logger.RequestAttrs(r), "agent_id", id, "workspace_id", uuidToString(agent.WorkspaceID))...)
+	userID := requestUserID(r)
+	actorType, actorID := h.resolveActor(r, userID, uuidToString(agent.WorkspaceID))
+	h.publish(protocol.EventAgentStatus, uuidToString(agent.WorkspaceID), actorType, actorID, map[string]any{"agent": resp})
+	writeJSON(w, http.StatusOK, resp)
+}
+
+func (h *Handler) UnarchiveAgent(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	agent, ok := h.loadAgentForUser(w, r, id)
+	if !ok {
+		return
+	}
+	if !h.canManageAgent(w, r, agent) {
+		return
+	}
+
+	agent, err := h.Queries.UnarchiveAgent(r.Context(), parseUUID(id))
+	if err != nil {
+		slog.Warn("unarchive agent failed", append(logger.RequestAttrs(r), "error", err, "agent_id", id)...)
+		writeError(w, http.StatusInternalServerError, "failed to unarchive agent")
+		return
+	}
+
+	resp := agentToResponse(agent)
+	slog.Info("agent unarchived", append(logger.RequestAttrs(r), "agent_id", id, "workspace_id", uuidToString(agent.WorkspaceID))...)
 	userID := requestUserID(r)
 	actorType, actorID := h.resolveActor(r, userID, uuidToString(agent.WorkspaceID))
 	h.publish(protocol.EventAgentStatus, uuidToString(agent.WorkspaceID), actorType, actorID, map[string]any{"agent": resp})
