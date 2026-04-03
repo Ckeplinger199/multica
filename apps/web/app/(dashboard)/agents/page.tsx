@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useDefaultLayout } from "react-resizable-panels";
 import {
   Bot,
@@ -28,9 +28,8 @@ import {
   Globe,
   Lock,
   Settings,
-  Archive,
-  ArchiveRestore,
   Camera,
+  Archive,
 } from "lucide-react";
 import type {
   Agent,
@@ -72,6 +71,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
+import { Skeleton } from "@/components/ui/skeleton";
 import { api } from "@/shared/api";
 import { useAuthStore } from "@/features/auth";
 import { useWorkspaceStore } from "@/features/workspace";
@@ -337,13 +337,13 @@ function AgentListItem({
       onClick={onClick}
       className={`flex w-full items-center gap-3 px-4 py-3 text-left transition-colors ${
         isSelected ? "bg-accent" : "hover:bg-accent/50"
-      } ${isArchived ? "opacity-60" : ""}`}
+      }`}
     >
-      <ActorAvatar actorType="agent" actorId={agent.id} size={32} className="rounded-lg" />
+      <ActorAvatar actorType="agent" actorId={agent.id} size={32} className={`rounded-lg ${isArchived ? "opacity-50 grayscale" : ""}`} />
 
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
-          <span className="truncate text-sm font-medium">{agent.name}</span>
+          <span className={`truncate text-sm font-medium ${isArchived ? "text-muted-foreground" : ""}`}>{agent.name}</span>
           {agent.runtime_mode === "cloud" ? (
             <Cloud className="h-3 w-3 text-muted-foreground" />
           ) : (
@@ -352,10 +352,7 @@ function AgentListItem({
         </div>
         <div className="flex items-center gap-1.5 mt-0.5">
           {isArchived ? (
-            <>
-              <Archive className="h-3 w-3 text-muted-foreground" />
-              <span className="text-xs text-muted-foreground">Archived</span>
-            </>
+            <span className="text-xs text-muted-foreground">Archived</span>
           ) : (
             <>
               <span className={`h-1.5 w-1.5 rounded-full ${st.dot}`} />
@@ -392,6 +389,8 @@ function InstructionsTab({
     setSaving(true);
     try {
       await onSave(value);
+    } catch {
+      // toast handled by parent
     } finally {
       setSaving(false);
     }
@@ -458,6 +457,8 @@ function SkillsTab({
       const newIds = [...agent.skills.map((s) => s.id), skillId];
       await api.setAgentSkills(agent.id, { skill_ids: newIds });
       await refreshAgents();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to add skill");
     } finally {
       setSaving(false);
       setShowPicker(false);
@@ -470,6 +471,8 @@ function SkillsTab({
       const newIds = agent.skills.filter((s) => s.id !== skillId).map((s) => s.id);
       await api.setAgentSkills(agent.id, { skill_ids: newIds });
       await refreshAgents();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to remove skill");
     } finally {
       setSaving(false);
     }
@@ -713,6 +716,8 @@ function ToolsTab({
     setSaving(true);
     try {
       await onSave(tools);
+    } catch {
+      // toast handled by parent
     } finally {
       setSaving(false);
     }
@@ -857,6 +862,8 @@ function TriggersTab({
     setSaving(true);
     try {
       await onSave(triggers);
+    } catch {
+      // toast handled by parent
     } finally {
       setSaving(false);
     }
@@ -1062,8 +1069,17 @@ function TasksTab({ agent }: { agent: Agent }) {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-12 text-sm text-muted-foreground">
-        Loading tasks...
+      <div className="space-y-2">
+        {Array.from({ length: 3 }).map((_, i) => (
+          <div key={i} className="flex items-center gap-3 rounded-lg border px-4 py-3">
+            <Skeleton className="h-4 w-4 rounded shrink-0" />
+            <div className="flex-1 space-y-1.5">
+              <Skeleton className="h-4 w-1/2" />
+              <Skeleton className="h-3 w-1/3" />
+            </div>
+            <Skeleton className="h-4 w-16" />
+          </div>
+        ))}
       </div>
     );
   }
@@ -1358,34 +1374,45 @@ function AgentDetail({
   agent,
   runtimes,
   onUpdate,
-  onDelete,
   onArchive,
-  onUnarchive,
+  onRestore,
+  onDelete,
 }: {
   agent: Agent;
   runtimes: RuntimeDevice[];
   onUpdate: (id: string, data: Partial<Agent>) => Promise<void>;
-  onDelete: (id: string) => Promise<void>;
   onArchive: (id: string) => Promise<void>;
-  onUnarchive: (id: string) => Promise<void>;
+  onRestore: (id: string) => Promise<void>;
+  onDelete: (id: string) => Promise<void>;
 }) {
   const st = statusConfig[agent.status];
   const runtimeDevice = getRuntimeDevice(agent, runtimes);
   const [activeTab, setActiveTab] = useState<DetailTab>("instructions");
+  const [confirmArchive, setConfirmArchive] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const isArchived = !!agent.archived_at;
 
   return (
     <div className="flex h-full flex-col">
+      {/* Archive Banner */}
+      {isArchived && (
+        <div className="flex items-center gap-2 bg-muted/50 px-4 py-2 text-xs text-muted-foreground border-b">
+          <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+          <span className="flex-1">This agent is archived. It cannot be assigned or mentioned.</span>
+          <Button variant="outline" size="sm" className="h-6 text-xs" onClick={() => onRestore(agent.id)}>
+            Restore
+          </Button>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex h-12 shrink-0 items-center gap-3 border-b px-4">
-        <ActorAvatar actorType="agent" actorId={agent.id} size={28} className="rounded-md" />
+        <ActorAvatar actorType="agent" actorId={agent.id} size={28} className={`rounded-md ${isArchived ? "opacity-50" : ""}`} />
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <h2 className="text-sm font-semibold truncate">{agent.name}</h2>
+            <h2 className={`text-sm font-semibold truncate ${isArchived ? "text-muted-foreground" : ""}`}>{agent.name}</h2>
             {isArchived ? (
-              <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                <Archive className="h-3 w-3" />
+              <span className="rounded-md bg-muted px-1.5 py-0.5 text-xs font-medium text-muted-foreground">
                 Archived
               </span>
             ) : (
@@ -1405,34 +1432,29 @@ function AgentDetail({
           </div>
         </div>
         <DropdownMenu>
-          <DropdownMenuTrigger
-            render={
-              <Button variant="ghost" size="icon-sm" />
-            }
-          >
-            <MoreHorizontal className="h-4 w-4 text-muted-foreground" />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            {isArchived ? (
-              <DropdownMenuItem onClick={() => onUnarchive(agent.id)}>
-                <ArchiveRestore className="h-3.5 w-3.5" />
-                Unarchive Agent
-              </DropdownMenuItem>
-            ) : (
-              <DropdownMenuItem onClick={() => onArchive(agent.id)}>
-                <Archive className="h-3.5 w-3.5" />
-                Archive Agent
-              </DropdownMenuItem>
-            )}
-            <DropdownMenuItem
-              className="text-destructive"
-              onClick={() => setConfirmDelete(true)}
+            <DropdownMenuTrigger
+              render={
+                <Button variant="ghost" size="icon-sm" />
+              }
             >
-              <Trash2 className="h-3.5 w-3.5" />
-              Delete Agent
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+              <MoreHorizontal className="h-4 w-4 text-muted-foreground" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {!isArchived && (
+                <DropdownMenuItem onClick={() => setConfirmArchive(true)}>
+                  <Archive className="h-3.5 w-3.5" />
+                  Archive Agent
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuItem
+                className="text-destructive"
+                onClick={() => setConfirmDelete(true)}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                Delete Agent
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
       </div>
 
       {/* Tabs */}
@@ -1486,6 +1508,39 @@ function AgentDetail({
         )}
       </div>
 
+      {/* Archive Confirmation */}
+      {confirmArchive && (
+        <Dialog open onOpenChange={(v) => { if (!v) setConfirmArchive(false); }}>
+          <DialogContent className="max-w-sm" showCloseButton={false}>
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-destructive/10">
+                <AlertCircle className="h-5 w-5 text-destructive" />
+              </div>
+              <DialogHeader className="flex-1 gap-1">
+                <DialogTitle className="text-sm font-semibold">Archive agent?</DialogTitle>
+                <DialogDescription className="text-xs">
+                  &quot;{agent.name}&quot; will be archived. It won&apos;t be assignable or mentionable, but all history is preserved. You can restore it later.
+                </DialogDescription>
+              </DialogHeader>
+            </div>
+            <DialogFooter>
+              <Button variant="ghost" onClick={() => setConfirmArchive(false)}>
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={() => {
+                  setConfirmArchive(false);
+                  onArchive(agent.id);
+                }}
+              >
+                Archive
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
       {/* Delete Confirmation */}
       {confirmDelete && (
         <Dialog open onOpenChange={(v) => { if (!v) setConfirmDelete(false); }}>
@@ -1532,6 +1587,7 @@ export default function AgentsPage() {
   const agents = useWorkspaceStore((s) => s.agents);
   const refreshAgents = useWorkspaceStore((s) => s.refreshAgents);
   const [selectedId, setSelectedId] = useState<string>("");
+  const [showArchived, setShowArchived] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
   const runtimes = useRuntimeStore((s) => s.runtimes);
   const fetchRuntimes = useRuntimeStore((s) => s.fetchRuntimes);
@@ -1543,12 +1599,19 @@ export default function AgentsPage() {
     if (workspace) fetchRuntimes();
   }, [workspace, fetchRuntimes]);
 
-  // Select first agent on initial load
+  const filteredAgents = useMemo(
+    () => showArchived ? agents.filter((a) => !!a.archived_at) : agents.filter((a) => !a.archived_at),
+    [agents, showArchived],
+  );
+
+  const archivedCount = useMemo(() => agents.filter((a) => !!a.archived_at).length, [agents]);
+
+  // Select first agent on initial load or when filter changes
   useEffect(() => {
-    if (agents.length > 0 && !selectedId) {
-      setSelectedId(agents[0]!.id);
+    if (filteredAgents.length > 0 && !filteredAgents.some((a) => a.id === selectedId)) {
+      setSelectedId(filteredAgents[0]!.id);
     }
-  }, [agents, selectedId]);
+  }, [filteredAgents, selectedId]);
 
   const handleCreate = async (data: CreateAgentRequest) => {
     const agent = await api.createAgent(data);
@@ -1557,35 +1620,88 @@ export default function AgentsPage() {
   };
 
   const handleUpdate = async (id: string, data: Record<string, unknown>) => {
-    await api.updateAgent(id, data as UpdateAgentRequest);
-    await refreshAgents();
+    try {
+      await api.updateAgent(id, data as UpdateAgentRequest);
+      await refreshAgents();
+      toast.success("Agent updated");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to update agent");
+      throw e;
+    }
   };
 
   const handleArchive = async (id: string) => {
-    await api.archiveAgent(id);
-    await refreshAgents();
+    try {
+      await api.archiveAgent(id);
+      await refreshAgents();
+      toast.success("Agent archived");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to archive agent");
+    }
   };
 
-  const handleUnarchive = async (id: string) => {
-    await api.unarchiveAgent(id);
-    await refreshAgents();
+  const handleRestore = async (id: string) => {
+    try {
+      await api.restoreAgent(id);
+      await refreshAgents();
+      toast.success("Agent restored");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to restore agent");
+    }
   };
 
   const handleDelete = async (id: string) => {
-    await api.deleteAgent(id);
-    if (selectedId === id) {
-      const remaining = agents.filter((a) => a.id !== id);
-      setSelectedId(remaining[0]?.id ?? "");
+    try {
+      await api.deleteAgent(id);
+      if (selectedId === id) {
+        const remaining = agents.filter((a) => a.id !== id);
+        setSelectedId(remaining[0]?.id ?? "");
+      }
+      await refreshAgents();
+      toast.success("Agent deleted");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to delete agent");
     }
-    await refreshAgents();
   };
 
   const selected = agents.find((a) => a.id === selectedId) ?? null;
 
   if (isLoading) {
     return (
-      <div className="flex flex-1 min-h-0 items-center justify-center text-sm text-muted-foreground">
-        Loading...
+      <div className="flex flex-1 min-h-0">
+        {/* List skeleton */}
+        <div className="w-72 border-r">
+          <div className="flex h-12 items-center justify-between border-b px-4">
+            <Skeleton className="h-4 w-16" />
+            <Skeleton className="h-6 w-6 rounded" />
+          </div>
+          <div className="divide-y">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="flex items-center gap-3 px-4 py-3">
+                <Skeleton className="h-8 w-8 rounded-full" />
+                <div className="flex-1 space-y-1.5">
+                  <Skeleton className="h-4 w-24" />
+                  <Skeleton className="h-3 w-16" />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+        {/* Detail skeleton */}
+        <div className="flex-1 p-6 space-y-6">
+          <div className="flex items-center gap-3">
+            <Skeleton className="h-10 w-10 rounded-full" />
+            <div className="space-y-1.5">
+              <Skeleton className="h-5 w-32" />
+              <Skeleton className="h-3 w-20" />
+            </div>
+          </div>
+          <div className="space-y-3">
+            <Skeleton className="h-8 w-full rounded-lg" />
+            <Skeleton className="h-8 w-full rounded-lg" />
+            <Skeleton className="h-8 w-3/4 rounded-lg" />
+          </div>
+        </div>
       </div>
     );
   }
@@ -1602,30 +1718,46 @@ export default function AgentsPage() {
         <div className="overflow-y-auto h-full border-r">
           <div className="flex h-12 items-center justify-between border-b px-4">
             <h1 className="text-sm font-semibold">Agents</h1>
-            <Button
-              variant="ghost"
-              size="icon-xs"
-              onClick={() => setShowCreate(true)}
-            >
-              <Plus className="h-4 w-4 text-muted-foreground" />
-            </Button>
+            <div className="flex items-center gap-1">
+              {archivedCount > 0 && (
+                <Button
+                  variant={showArchived ? "secondary" : "ghost"}
+                  size="icon-xs"
+                  onClick={() => setShowArchived(!showArchived)}
+                  title={showArchived ? "Show active agents" : "Show archived agents"}
+                >
+                  <Archive className="h-4 w-4 text-muted-foreground" />
+                </Button>
+              )}
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                onClick={() => setShowCreate(true)}
+              >
+                <Plus className="h-4 w-4 text-muted-foreground" />
+              </Button>
+            </div>
           </div>
-          {agents.length === 0 ? (
+          {filteredAgents.length === 0 ? (
             <div className="flex flex-col items-center justify-center px-4 py-12">
               <Bot className="h-8 w-8 text-muted-foreground/40" />
-              <p className="mt-3 text-sm text-muted-foreground">No agents yet</p>
-              <Button
-                onClick={() => setShowCreate(true)}
-                size="xs"
-                className="mt-3"
-              >
-                <Plus className="h-3 w-3" />
-                Create Agent
-              </Button>
+              <p className="mt-3 text-sm text-muted-foreground">
+                {showArchived ? "No archived agents" : archivedCount > 0 ? "No active agents" : "No agents yet"}
+              </p>
+              {!showArchived && (
+                <Button
+                  onClick={() => setShowCreate(true)}
+                  size="xs"
+                  className="mt-3"
+                >
+                  <Plus className="h-3 w-3" />
+                  Create Agent
+                </Button>
+              )}
             </div>
           ) : (
             <div className="divide-y">
-              {agents.map((agent) => (
+              {filteredAgents.map((agent) => (
                 <AgentListItem
                   key={agent.id}
                   agent={agent}
@@ -1648,9 +1780,9 @@ export default function AgentsPage() {
             agent={selected}
             runtimes={runtimes}
             onUpdate={handleUpdate}
-            onDelete={handleDelete}
             onArchive={handleArchive}
-            onUnarchive={handleUnarchive}
+            onRestore={handleRestore}
+            onDelete={handleDelete}
           />
         ) : (
           <div className="flex h-full flex-col items-center justify-center text-muted-foreground">

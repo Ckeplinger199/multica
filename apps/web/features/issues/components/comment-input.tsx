@@ -3,7 +3,7 @@
 import { useRef, useState } from "react";
 import { ArrowUp, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { RichTextEditor, type RichTextEditorRef } from "@/components/common/rich-text-editor";
+import { ContentEditor, type ContentEditorRef } from "@/features/editor";
 import { FileUploadButton } from "@/components/common/file-upload-button";
 import { useFileUpload } from "@/shared/hooks/use-file-upload";
 
@@ -13,16 +13,13 @@ interface CommentInputProps {
 }
 
 function CommentInput({ issueId, onSubmit }: CommentInputProps) {
-  const editorRef = useRef<RichTextEditorRef>(null);
-  const attachmentIdsRef = useRef<string[]>([]);
+  const editorRef = useRef<ContentEditorRef>(null);
   const [isEmpty, setIsEmpty] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const { uploadWithToast, uploading } = useFileUpload();
+  const { uploadWithToast } = useFileUpload();
 
   const handleUpload = async (file: File) => {
-    const result = await uploadWithToast(file, { issueId });
-    if (result) attachmentIdsRef.current.push(result.id);
-    return result;
+    return await uploadWithToast(file, { issueId });
   };
 
   const handleSubmit = async () => {
@@ -30,10 +27,8 @@ function CommentInput({ issueId, onSubmit }: CommentInputProps) {
     if (!content || submitting) return;
     setSubmitting(true);
     try {
-      const ids = attachmentIdsRef.current.length > 0 ? [...attachmentIdsRef.current] : undefined;
-      await onSubmit(content, ids);
+      await onSubmit(content);
       editorRef.current?.clearContent();
-      attachmentIdsRef.current = [];
       setIsEmpty(true);
     } finally {
       setSubmitting(false);
@@ -43,7 +38,7 @@ function CommentInput({ issueId, onSubmit }: CommentInputProps) {
   return (
     <div className="relative flex max-h-56 flex-col rounded-lg bg-card pb-8 ring-1 ring-border">
       <div className="flex-1 min-h-0 overflow-y-auto px-3 py-2">
-        <RichTextEditor
+        <ContentEditor
           ref={editorRef}
           placeholder="Leave a comment..."
           onUpdate={(md) => setIsEmpty(!md.trim())}
@@ -55,11 +50,7 @@ function CommentInput({ issueId, onSubmit }: CommentInputProps) {
       <div className="absolute bottom-1 right-1.5 flex items-center gap-1">
         <FileUploadButton
           size="sm"
-          onUpload={handleUpload}
-          onInsert={(result, isImage) =>
-            editorRef.current?.insertFile(result.filename, result.link, isImage)
-          }
-          disabled={uploading}
+          onSelect={(file) => editorRef.current?.uploadFile(file)}
         />
         <Button
           size="icon-xs"

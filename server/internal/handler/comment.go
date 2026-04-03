@@ -9,6 +9,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/multica-ai/multica/server/internal/logger"
+	"github.com/multica-ai/multica/server/internal/mention"
 	"github.com/multica-ai/multica/server/internal/util"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
 	"github.com/multica-ai/multica/server/pkg/protocol"
@@ -130,6 +131,9 @@ func (h *Handler) CreateComment(w http.ResponseWriter, r *http.Request) {
 	// Determine author identity: agent (via X-Agent-ID header) or member.
 	authorType, authorID := h.resolveActor(r, userID, uuidToString(issue.WorkspaceID))
 
+	// Expand bare issue identifiers (e.g. MUL-117) into mention links.
+	req.Content = mention.ExpandIssueIdentifiers(r.Context(), h.Queries, issue.WorkspaceID, req.Content)
+
 	comment, err := h.Queries.CreateComment(r.Context(), db.CreateCommentParams{
 		IssueID:     issue.ID,
 		WorkspaceID: issue.WorkspaceID,
@@ -184,7 +188,8 @@ func (h *Handler) CreateComment(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Trigger @mentioned agents: parse agent mentions and enqueue tasks for each.
-	h.enqueueMentionedAgentTasks(r.Context(), issue, comment, authorType, authorID)
+	// Pass parentComment so that replies inherit mentions from the thread root.
+	h.enqueueMentionedAgentTasks(r.Context(), issue, comment, parentComment, authorType, authorID)
 
 	writeJSON(w, http.StatusCreated, resp)
 }
@@ -222,6 +227,8 @@ func (h *Handler) commentMentionsOthersButNotAssignee(content string, issue db.I
 // continuing a human conversation — not requesting work from the assigned agent.
 // Replying to an agent-started thread, or explicitly @mentioning the assignee
 // in the reply, still triggers on_comment as expected.
+// If the parent (thread root) itself @mentions the assignee, the thread is
+// considered a conversation with the agent, so replies are allowed to trigger.
 func (h *Handler) isReplyToMemberThread(parent *db.Comment, content string, issue db.Issue) bool {
 	if parent == nil {
 		return false // Not a reply — normal top-level comment
@@ -230,27 +237,56 @@ func (h *Handler) isReplyToMemberThread(parent *db.Comment, content string, issu
 		return false // Thread started by an agent — allow trigger
 	}
 	// Thread was started by a member. Suppress on_comment unless the reply
-	// explicitly @mentions the assignee agent.
+	// or the parent explicitly @mentions the assignee agent.
 	if !issue.AssigneeID.Valid {
 		return true // No assignee to mention
 	}
 	assigneeID := uuidToString(issue.AssigneeID)
+	// Check current comment mentions.
 	for _, m := range util.ParseMentions(content) {
 		if m.ID == assigneeID {
-			return false // Assignee explicitly mentioned — allow trigger
+			return false // Assignee explicitly mentioned in reply — allow trigger
+		}
+	}
+	// Check parent (thread root) mentions — if the thread was started by
+	// mentioning the assignee, replies continue that conversation.
+	for _, m := range util.ParseMentions(parent.Content) {
+		if m.ID == assigneeID {
+			return false // Assignee mentioned in thread root — allow trigger
 		}
 	}
 	return true // Reply to member thread without mentioning agent — suppress
 }
 
 // enqueueMentionedAgentTasks parses @agent mentions from comment content and
-// enqueues a task for each mentioned agent. Skips self-mentions, agents that
-// are already the issue's assignee (handled by on_comment), and agents with
-// on_mention trigger disabled.
+// enqueues a task for each mentioned agent. When parentComment is non-nil
+// (i.e. the comment is a reply), mentions from the parent (thread root) are
+// also included so that agents mentioned in the top-level comment are
+// re-triggered by subsequent replies in the same thread.
+// Skips self-mentions, agents that are already the issue's assignee (handled
+// by on_comment), agents with on_mention trigger disabled, and private agents
+// mentioned by non-owner members (only the agent owner or workspace
+// admin/owner can mention a private agent).
 // Note: no status gate here — @mention is an explicit action and should work
 // even on done/cancelled issues (the agent can reopen the issue if needed).
-func (h *Handler) enqueueMentionedAgentTasks(ctx context.Context, issue db.Issue, comment db.Comment, authorType, authorID string) {
+func (h *Handler) enqueueMentionedAgentTasks(ctx context.Context, issue db.Issue, comment db.Comment, parentComment *db.Comment, authorType, authorID string) {
+	wsID := uuidToString(issue.WorkspaceID)
 	mentions := util.ParseMentions(comment.Content)
+	// When replying in a thread, also include mentions from the parent comment
+	// so that agents mentioned in the thread root are triggered by replies.
+	if parentComment != nil {
+		parentMentions := util.ParseMentions(parentComment.Content)
+		seen := make(map[string]bool, len(mentions))
+		for _, m := range mentions {
+			seen[m.Type+":"+m.ID] = true
+		}
+		for _, m := range parentMentions {
+			if !seen[m.Type+":"+m.ID] {
+				mentions = append(mentions, m)
+				seen[m.Type+":"+m.ID] = true
+			}
+		}
+	}
 	for _, m := range mentions {
 		if m.Type != "agent" {
 			continue
@@ -266,8 +302,23 @@ func (h *Handler) enqueueMentionedAgentTasks(ctx context.Context, issue db.Issue
 			issue.AssigneeID.Valid && uuidToString(issue.AssigneeID) == m.ID {
 			continue
 		}
+		// Load the agent to check visibility, archive status, and trigger config.
+		agent, err := h.Queries.GetAgent(ctx, agentUUID)
+		if err != nil || !agent.RuntimeID.Valid || agent.ArchivedAt.Valid {
+			continue
+		}
+		// Private agents can only be mentioned by the agent owner or workspace admin/owner.
+		if agent.Visibility == "private" && authorType == "member" {
+			isOwner := uuidToString(agent.OwnerID) == authorID
+			if !isOwner {
+				member, err := h.getWorkspaceMember(ctx, authorID, wsID)
+				if err != nil || !roleAllowed(member.Role, "owner", "admin") {
+					continue
+				}
+			}
+		}
 		// Check if the agent has on_mention trigger enabled.
-		if !h.isAgentMentionTriggerEnabled(ctx, agentUUID) {
+		if !agentHasTriggerEnabled(agent.Triggers, "on_mention") {
 			continue
 		}
 		// Dedup: skip if this agent already has a pending task for this issue.

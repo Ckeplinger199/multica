@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import {
   Calendar,
   Check,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Link2,
@@ -18,6 +19,7 @@ import {
   X,
 } from "lucide-react";
 import { toast } from "sonner";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -42,9 +44,9 @@ import {
   DropdownMenuSubContent,
 } from "@/components/ui/dropdown-menu";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
-import { RichTextEditor } from "@/components/common/rich-text-editor";
+import { ContentEditor, type ContentEditorRef } from "@/features/editor";
 import { FileUploadButton } from "@/components/common/file-upload-button";
-import { TitleEditor } from "@/components/common/title-editor";
+import { TitleEditor } from "@/features/editor";
 import {
   Tooltip,
   TooltipTrigger,
@@ -160,13 +162,15 @@ interface IssueDetailProps {
   onDelete?: () => void;
   defaultSidebarOpen?: boolean;
   layoutId?: string;
+  /** When set, the issue detail will auto-scroll to this comment and briefly highlight it. */
+  highlightCommentId?: string;
 }
 
 // ---------------------------------------------------------------------------
 // IssueDetail
 // ---------------------------------------------------------------------------
 
-export function IssueDetail({ issueId, onDelete, defaultSidebarOpen = true, layoutId = "multica_issue_detail_layout" }: IssueDetailProps) {
+export function IssueDetail({ issueId, onDelete, defaultSidebarOpen = true, layoutId = "multica_issue_detail_layout", highlightCommentId }: IssueDetailProps) {
   const id = issueId;
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
@@ -191,6 +195,10 @@ export function IssueDetail({ issueId, onDelete, defaultSidebarOpen = true, layo
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [propertiesOpen, setPropertiesOpen] = useState(true);
   const [detailsOpen, setDetailsOpen] = useState(true);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const [showScrollBottom, setShowScrollBottom] = useState(false);
+  const [highlightedId, setHighlightedId] = useState<string | null>(null);
+  const didHighlightRef = useRef<string | null>(null);
 
   // Single source of truth: read issue directly from global store
   const issue = useIssueStore((s) => s.issues.find((i) => i.id === id)) ?? null;
@@ -208,26 +216,62 @@ export function IssueDetail({ issueId, onDelete, defaultSidebarOpen = true, layo
       .then((iss) => {
         useIssueStore.getState().addIssue(iss);
       })
-      .catch(console.error)
+      .catch((e) => {
+        console.error(e);
+        toast.error("Failed to load issue");
+      })
       .finally(() => setIssueLoading(false));
   }, [id, !!issue]);
 
   // Custom hooks — encapsulate timeline, reactions, subscribers
   const {
-    timeline, submitting, submitComment, submitReply,
+    timeline, loading: timelineLoading, submitting, submitComment, submitReply,
     editComment, deleteComment, toggleReaction: handleToggleReaction,
   } = useIssueTimeline(id, user?.id);
 
   const {
-    reactions: issueReactions,
+    reactions: issueReactions, loading: reactionsLoading,
     toggleReaction: handleToggleIssueReaction,
   } = useIssueReactions(id, user?.id);
 
   const {
-    subscribers, isSubscribed, toggleSubscribe: handleToggleSubscribe, toggleSubscriber,
+    subscribers, loading: subscribersLoading, isSubscribed, toggleSubscribe: handleToggleSubscribe, toggleSubscriber,
   } = useIssueSubscribers(id, user?.id);
 
   const loading = issueLoading;
+
+  // Scroll to highlighted comment once timeline loads (fire only once per highlightCommentId)
+  useEffect(() => {
+    if (!highlightCommentId || timeline.length === 0) return;
+    if (didHighlightRef.current === highlightCommentId) return;
+    const el = document.getElementById(`comment-${highlightCommentId}`);
+    if (el) {
+      didHighlightRef.current = highlightCommentId;
+      requestAnimationFrame(() => {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+        setHighlightedId(highlightCommentId);
+        const timer = setTimeout(() => setHighlightedId(null), 2000);
+        return () => clearTimeout(timer);
+      });
+    }
+  }, [highlightCommentId, timeline.length]);
+
+  // Track scroll position for jump-to-bottom button
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+    const onScroll = () => {
+      const { scrollTop, scrollHeight, clientHeight } = container;
+      setShowScrollBottom(scrollHeight - scrollTop - clientHeight > 200);
+    };
+    container.addEventListener("scroll", onScroll, { passive: true });
+    onScroll();
+    return () => container.removeEventListener("scroll", onScroll);
+  }, []);
+
+  const scrollToBottom = useCallback(() => {
+    scrollContainerRef.current?.scrollTo({ top: scrollContainerRef.current.scrollHeight, behavior: "smooth" });
+  }, []);
 
   // Issue field updates — write directly to the global store (single source of truth)
   const handleUpdateField = useCallback(
@@ -243,7 +287,7 @@ export function IssueDetail({ issueId, onDelete, defaultSidebarOpen = true, layo
     [issue, id],
   );
 
-  const descEditorRef = useRef<import("@/components/common/rich-text-editor").RichTextEditorRef>(null);
+  const descEditorRef = useRef<ContentEditorRef>(null);
   const handleDescriptionUpload = useCallback(
     (file: File) => uploadWithToast(file, { issueId: id }),
     [uploadWithToast, id],
@@ -265,8 +309,51 @@ export function IssueDetail({ issueId, onDelete, defaultSidebarOpen = true, layo
 
   if (loading) {
     return (
-      <div className="flex flex-1 min-h-0 items-center justify-center text-sm text-muted-foreground">
-        Loading...
+      <div className="flex flex-1 min-h-0 flex-col">
+        {/* Header skeleton */}
+        <div className="flex h-12 shrink-0 items-center gap-2 border-b px-4">
+          <Skeleton className="h-4 w-16" />
+          <Skeleton className="h-4 w-4" />
+          <Skeleton className="h-4 w-24" />
+        </div>
+        <div className="flex flex-1 min-h-0">
+          {/* Content skeleton */}
+          <div className="flex-1 p-8 space-y-6">
+            <Skeleton className="h-8 w-3/4" />
+            <div className="space-y-2">
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-4 w-5/6" />
+              <Skeleton className="h-4 w-2/3" />
+            </div>
+            <Skeleton className="h-px w-full" />
+            <div className="space-y-3">
+              <Skeleton className="h-4 w-20" />
+              <div className="flex items-start gap-3">
+                <Skeleton className="h-8 w-8 rounded-full" />
+                <div className="flex-1 space-y-2">
+                  <Skeleton className="h-4 w-32" />
+                  <Skeleton className="h-16 w-full rounded-lg" />
+                </div>
+              </div>
+            </div>
+          </div>
+          {/* Sidebar skeleton */}
+          <div className="w-64 border-l p-4 space-y-4">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="flex items-center justify-between">
+                <Skeleton className="h-3 w-16" />
+                <Skeleton className="h-5 w-24" />
+              </div>
+            ))}
+            <Skeleton className="h-px w-full" />
+            {Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} className="flex items-center justify-between">
+                <Skeleton className="h-3 w-16" />
+                <Skeleton className="h-4 w-28" />
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     );
   }
@@ -541,7 +628,7 @@ export function IssueDetail({ issueId, onDelete, defaultSidebarOpen = true, layo
           </div>
 
         {/* Content — scrollable */}
-        <div className="flex-1 overflow-y-auto">
+        <div ref={scrollContainerRef} className="relative flex-1 overflow-y-auto">
         <div className="mx-auto w-full max-w-4xl px-8 py-8">
           <TitleEditor
             key={`title-${id}`}
@@ -554,7 +641,7 @@ export function IssueDetail({ issueId, onDelete, defaultSidebarOpen = true, layo
             }}
           />
 
-          <RichTextEditor
+          <ContentEditor
             ref={descEditorRef}
             key={id}
             defaultValue={issue.description || ""}
@@ -566,15 +653,21 @@ export function IssueDetail({ issueId, onDelete, defaultSidebarOpen = true, layo
           />
 
           <div className="flex items-center gap-1 mt-3">
-            <ReactionBar
-              reactions={issueReactions}
-              currentUserId={user?.id}
-              onToggle={handleToggleIssueReaction}
-            />
+            {reactionsLoading ? (
+              <div className="flex items-center gap-1">
+                <Skeleton className="h-7 w-14 rounded-full" />
+                <Skeleton className="h-7 w-14 rounded-full" />
+              </div>
+            ) : (
+              <ReactionBar
+                reactions={issueReactions}
+                currentUserId={user?.id}
+                onToggle={handleToggleIssueReaction}
+              />
+            )}
             <FileUploadButton
               size="sm"
-              onUpload={handleDescriptionUpload}
-              onInsert={(result, isImage) => descEditorRef.current?.insertFile(result.filename, result.link, isImage)}
+              onSelect={(file) => descEditorRef.current?.uploadFile(file)}
             />
           </div>
 
@@ -587,6 +680,15 @@ export function IssueDetail({ issueId, onDelete, defaultSidebarOpen = true, layo
                 <h2 className="text-base font-semibold">Activity</h2>
               </div>
               <div className="flex items-center gap-2">
+                {subscribersLoading ? (
+                  <div className="flex items-center gap-1">
+                    <Skeleton className="h-4 w-16" />
+                    <div className="flex -space-x-1">
+                      <Skeleton className="h-6 w-6 rounded-full" />
+                      <Skeleton className="h-6 w-6 rounded-full" />
+                    </div>
+                  </div>
+                ) : (<>
                 <button
                   onClick={handleToggleSubscribe}
                   className="text-xs text-muted-foreground hover:text-foreground transition-colors"
@@ -664,6 +766,7 @@ export function IssueDetail({ issueId, onDelete, defaultSidebarOpen = true, layo
                     </Command>
                   </PopoverContent>
                 </Popover>
+                </>)}
               </div>
             </div>
 
@@ -682,7 +785,19 @@ export function IssueDetail({ issueId, onDelete, defaultSidebarOpen = true, layo
 
             {/* Timeline entries */}
             <div className="mt-4 flex flex-col gap-3">
-              {(() => {
+              {timelineLoading ? (
+                <div className="space-y-4">
+                  {Array.from({ length: 3 }).map((_, i) => (
+                    <div key={i} className="flex items-start gap-3 px-4">
+                      <Skeleton className="h-8 w-8 rounded-full shrink-0" />
+                      <div className="flex-1 space-y-2">
+                        <Skeleton className="h-4 w-32" />
+                        <Skeleton className="h-16 w-full rounded-lg" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (() => {
                 const topLevel = timeline.filter((e) => e.type === "activity" || !e.parent_id);
                 const repliesByParent = new Map<string, TimelineEntry[]>();
                 for (const e of timeline) {
@@ -733,17 +848,19 @@ export function IssueDetail({ issueId, onDelete, defaultSidebarOpen = true, layo
                   if (group.type === "comment") {
                     const entry = group.entries[0]!;
                     return (
-                      <CommentCard
-                        key={entry.id}
-                        issueId={id}
-                        entry={entry}
-                        allReplies={repliesByParent}
-                        currentUserId={user?.id}
-                        onReply={submitReply}
-                        onEdit={editComment}
-                        onDelete={deleteComment}
-                        onToggleReaction={handleToggleReaction}
-                      />
+                      <div key={entry.id} id={`comment-${entry.id}`}>
+                        <CommentCard
+                          issueId={id}
+                          entry={entry}
+                          allReplies={repliesByParent}
+                          currentUserId={user?.id}
+                          onReply={submitReply}
+                          onEdit={editComment}
+                          onDelete={deleteComment}
+                          onToggleReaction={handleToggleReaction}
+                          highlightedCommentId={highlightedId}
+                        />
+                      </div>
                     );
                   }
 
@@ -802,6 +919,20 @@ export function IssueDetail({ issueId, onDelete, defaultSidebarOpen = true, layo
             </div>
           </div>
         </div>
+        {/* Jump to bottom button */}
+        {showScrollBottom && (
+          <div className="sticky bottom-4 flex justify-center pointer-events-none">
+            <Button
+              variant="secondary"
+              size="sm"
+              className="pointer-events-auto shadow-md"
+              onClick={scrollToBottom}
+            >
+              <ChevronDown className="mr-1 h-3.5 w-3.5" />
+              Jump to bottom
+            </Button>
+          </div>
+        )}
         </div>
       </div>
       </ResizablePanel>
