@@ -218,6 +218,30 @@ func (h *Handler) ListAttachments(w http.ResponseWriter, r *http.Request) {
 }
 
 // ---------------------------------------------------------------------------
+// GetAttachment — GET /api/attachments/{id}
+// ---------------------------------------------------------------------------
+
+func (h *Handler) GetAttachment(w http.ResponseWriter, r *http.Request) {
+	attachmentID := chi.URLParam(r, "id")
+	workspaceID := resolveWorkspaceID(r)
+	if workspaceID == "" {
+		writeError(w, http.StatusBadRequest, "workspace_id is required")
+		return
+	}
+
+	att, err := h.Queries.GetAttachment(r.Context(), db.GetAttachmentParams{
+		ID:          parseUUID(attachmentID),
+		WorkspaceID: parseUUID(workspaceID),
+	})
+	if err != nil {
+		writeError(w, http.StatusNotFound, "attachment not found")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, h.attachmentToResponse(att))
+}
+
+// ---------------------------------------------------------------------------
 // DeleteAttachment — DELETE /api/attachments/{id}
 // ---------------------------------------------------------------------------
 

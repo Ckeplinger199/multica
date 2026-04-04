@@ -33,6 +33,7 @@ func init() {
 	rootCmd.AddCommand(configCmd)
 	rootCmd.AddCommand(issueCmd)
 	rootCmd.AddCommand(repoCmd)
+	rootCmd.AddCommand(attachmentCmd)
 	rootCmd.AddCommand(versionCmd)
 	rootCmd.AddCommand(updateCmd)
 }
