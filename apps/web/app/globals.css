@@ -29,6 +29,7 @@
     --color-success: var(--success);
     --color-warning: var(--warning);
     --color-info: var(--info);
+    --color-done: var(--done);
     --color-brand: var(--brand);
     --color-brand-foreground: var(--brand-foreground);
     --color-priority: var(--priority);
@@ -95,6 +96,7 @@
     --success: oklch(0.55 0.16 145);
     --warning: oklch(0.75 0.16 85);
     --info: oklch(0.55 0.18 250);
+    --done: oklch(0.55 0.18 300);
     --priority: oklch(0.65 0.18 50);
     --scrollbar-thumb: oklch(0 0 0 / 10%);
     --scrollbar-thumb-hover: oklch(0 0 0 / 18%);
@@ -139,6 +141,7 @@
     --success: oklch(0.65 0.15 145);
     --warning: oklch(0.70 0.16 85);
     --info: oklch(0.65 0.18 250);
+    --done: oklch(0.65 0.18 300);
     --priority: oklch(0.70 0.18 50);
     --scrollbar-thumb: oklch(1 0 0 / 8%);
     --scrollbar-thumb-hover: oklch(1 0 0 / 18%);
