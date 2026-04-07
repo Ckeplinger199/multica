@@ -21,15 +21,6 @@ export interface RuntimeDevice {
 
 export type AgentRuntime = RuntimeDevice;
 
-export interface AgentTool {
-  id: string;
-  name: string;
-  description: string;
-  auth_type: "oauth" | "api_key" | "none";
-  connected: boolean;
-  config: Record<string, unknown>;
-}
-
 export interface AgentTask {
   id: string;
   agent_id: string;
@@ -60,7 +51,6 @@ export interface Agent {
   max_concurrent_tasks: number;
   owner_id: string | null;
   skills: Skill[];
-  tools: AgentTool[];
   created_at: string;
   updated_at: string;
   archived_at: string | null;
@@ -76,7 +66,6 @@ export interface CreateAgentRequest {
   runtime_config?: Record<string, unknown>;
   visibility?: AgentVisibility;
   max_concurrent_tasks?: number;
-  tools?: AgentTool[];
 }
 
 export interface UpdateAgentRequest {
@@ -89,7 +78,6 @@ export interface UpdateAgentRequest {
   visibility?: AgentVisibility;
   status?: AgentStatus;
   max_concurrent_tasks?: number;
-  tools?: AgentTool[];
 }
 
 // Skills

@@ -8,14 +8,10 @@ import {
   Monitor,
   Plus,
   ListTodo,
-  Wrench,
   FileText,
   BookOpenText,
-  MessageSquare,
   Trash2,
   Save,
-  Key,
-  Link2,
   Clock,
   CheckCircle2,
   XCircle,
@@ -34,7 +30,6 @@ import type {
   Agent,
   AgentStatus,
   AgentVisibility,
-  AgentTool,
   AgentTask,
   RuntimeDevice,
   CreateAgentRequest,
@@ -590,248 +585,6 @@ function SkillsTab({
 }
 
 // ---------------------------------------------------------------------------
-// Tools Tab
-// ---------------------------------------------------------------------------
-
-function AddToolDialog({
-  onClose,
-  onAdd,
-}: {
-  onClose: () => void;
-  onAdd: (tool: AgentTool) => void;
-}) {
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
-  const [authType, setAuthType] = useState<"oauth" | "api_key" | "none">("api_key");
-
-  const handleAdd = () => {
-    if (!name.trim()) return;
-    onAdd({
-      id: generateId(),
-      name: name.trim(),
-      description: description.trim(),
-      auth_type: authType,
-      connected: false,
-      config: {},
-    });
-    onClose();
-  };
-
-  return (
-    <Dialog open onOpenChange={(v) => { if (!v) onClose(); }}>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle className="text-sm">Add Tool</DialogTitle>
-          <DialogDescription className="text-xs">
-            Connect an external tool for this agent to use.
-          </DialogDescription>
-        </DialogHeader>
-
-        <div className="space-y-3">
-          <div>
-            <Label className="text-xs text-muted-foreground">Tool Name</Label>
-            <Input
-              autoFocus
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. Google Search, Slack, GitHub"
-              className="mt-1"
-              onKeyDown={(e) => e.key === "Enter" && handleAdd()}
-            />
-          </div>
-          <div>
-            <Label className="text-xs text-muted-foreground">Description</Label>
-            <Input
-              type="text"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="What does this tool do?"
-              className="mt-1"
-            />
-          </div>
-          <div>
-            <Label className="text-xs text-muted-foreground">Authentication</Label>
-            <div className="mt-1.5 flex gap-2">
-              {(["api_key", "oauth", "none"] as const).map((type) => (
-                <Button
-                  key={type}
-                  variant={authType === type ? "outline" : "ghost"}
-                  size="xs"
-                  onClick={() => setAuthType(type)}
-                  className={`flex-1 ${
-                    authType === type
-                      ? "border-primary bg-primary/5 font-medium"
-                      : ""
-                  }`}
-                >
-                  {type === "api_key" ? "API Key" : type === "oauth" ? "OAuth" : "None"}
-                </Button>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        <DialogFooter>
-          <Button variant="ghost" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button
-            onClick={handleAdd}
-            disabled={!name.trim()}
-          >
-            Add
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-function ToolsTab({
-  agent,
-  onSave,
-}: {
-  agent: Agent;
-  onSave: (tools: AgentTool[]) => Promise<void>;
-}) {
-  const [tools, setTools] = useState<AgentTool[]>(agent.tools ?? []);
-  const [showAdd, setShowAdd] = useState(false);
-  const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    setTools(agent.tools ?? []);
-  }, [agent.id, agent.tools]);
-
-  const isDirty = JSON.stringify(tools) !== JSON.stringify(agent.tools ?? []);
-
-  const handleSave = async () => {
-    setSaving(true);
-    try {
-      await onSave(tools);
-    } catch {
-      // toast handled by parent
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const toggleConnect = (toolId: string) => {
-    setTools((prev) =>
-      prev.map((t) => (t.id === toolId ? { ...t, connected: !t.connected } : t)),
-    );
-  };
-
-  const removeTool = (toolId: string) => {
-    setTools((prev) => prev.filter((t) => t.id !== toolId));
-  };
-
-  return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h3 className="text-sm font-semibold">Tools</h3>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            External tools and APIs this agent can use during task execution.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          {isDirty && (
-            <Button
-              onClick={handleSave}
-              disabled={saving}
-              size="xs"
-            >
-              <Save className="h-3 w-3" />
-              {saving ? "Saving..." : "Save"}
-            </Button>
-          )}
-          <Button
-            variant="outline"
-            size="xs"
-            onClick={() => setShowAdd(true)}
-          >
-            <Plus className="h-3 w-3" />
-            Add Tool
-          </Button>
-        </div>
-      </div>
-
-      {tools.length === 0 ? (
-        <div className="flex flex-col items-center justify-center rounded-lg border border-dashed py-12">
-          <Wrench className="h-8 w-8 text-muted-foreground/40" />
-          <p className="mt-3 text-sm text-muted-foreground">No tools configured</p>
-          <Button
-            onClick={() => setShowAdd(true)}
-            size="xs"
-            className="mt-3"
-          >
-            <Plus className="h-3 w-3" />
-            Add Tool
-          </Button>
-        </div>
-      ) : (
-        <div className="space-y-2">
-          {tools.map((tool) => (
-            <div
-              key={tool.id}
-              className="flex items-center gap-3 rounded-lg border px-4 py-3"
-            >
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted">
-                {tool.auth_type === "oauth" ? (
-                  <Link2 className="h-4 w-4 text-muted-foreground" />
-                ) : tool.auth_type === "api_key" ? (
-                  <Key className="h-4 w-4 text-muted-foreground" />
-                ) : (
-                  <Wrench className="h-4 w-4 text-muted-foreground" />
-                )}
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="text-sm font-medium">{tool.name}</div>
-                {tool.description && (
-                  <div className="text-xs text-muted-foreground truncate">
-                    {tool.description}
-                  </div>
-                )}
-              </div>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="ghost"
-                  size="xs"
-                  onClick={() => toggleConnect(tool.id)}
-                  className={
-                    tool.connected
-                      ? "bg-success/10 text-success"
-                      : "bg-muted text-muted-foreground hover:bg-accent"
-                  }
-                >
-                  {tool.connected ? "Connected" : "Connect"}
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon-xs"
-                  onClick={() => removeTool(tool.id)}
-                  className="text-muted-foreground hover:text-destructive"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </Button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {showAdd && (
-        <AddToolDialog
-          onClose={() => setShowAdd(false)}
-          onAdd={(tool) => setTools((prev) => [...prev, tool])}
-        />
-      )}
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
 // Tasks Tab
 // ---------------------------------------------------------------------------
 
@@ -1141,12 +894,11 @@ function SettingsTab({
 // Agent Detail
 // ---------------------------------------------------------------------------
 
-type DetailTab = "instructions" | "skills" | "tools" | "tasks" | "settings";
+type DetailTab = "instructions" | "skills" | "tasks" | "settings";
 
 const detailTabs: { id: DetailTab; label: string; icon: typeof FileText }[] = [
   { id: "instructions", label: "Instructions", icon: FileText },
   { id: "skills", label: "Skills", icon: BookOpenText },
-  { id: "tools", label: "Tools", icon: Wrench },
   { id: "tasks", label: "Tasks", icon: ListTodo },
   { id: "settings", label: "Settings", icon: Settings },
 ];
@@ -1259,12 +1011,6 @@ function AgentDetail({
         )}
         {activeTab === "skills" && (
           <SkillsTab agent={agent} />
-        )}
-        {activeTab === "tools" && (
-          <ToolsTab
-            agent={agent}
-            onSave={(tools) => onUpdate(agent.id, { tools })}
-          />
         )}
         {activeTab === "tasks" && <TasksTab agent={agent} />}
         {activeTab === "settings" && (

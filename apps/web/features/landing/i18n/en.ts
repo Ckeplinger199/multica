@@ -385,7 +385,7 @@ export const en: LandingDict = {
         title: "Core Platform",
         changes: [
           "Multi-workspace switching and creation",
-          "Agent management UI with skills and tools",
+          "Agent management UI with skills",
           "Unified agent SDK supporting Claude Code and Codex backends",
           "Comment CRUD with real-time WebSocket updates",
           "Task service layer and daemon REST protocol",

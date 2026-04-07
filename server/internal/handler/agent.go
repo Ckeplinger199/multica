@@ -28,7 +28,6 @@ type AgentResponse struct {
 	MaxConcurrentTasks int32           `json:"max_concurrent_tasks"`
 	OwnerID            *string         `json:"owner_id"`
 	Skills             []SkillResponse `json:"skills"`
-	Tools              any             `json:"tools"`
 	CreatedAt          string          `json:"created_at"`
 	UpdatedAt          string          `json:"updated_at"`
 	ArchivedAt         *string         `json:"archived_at"`
@@ -42,14 +41,6 @@ func agentToResponse(a db.Agent) AgentResponse {
 	}
 	if rc == nil {
 		rc = map[string]any{}
-	}
-
-	var tools any
-	if a.Tools != nil {
-		json.Unmarshal(a.Tools, &tools)
-	}
-	if tools == nil {
-		tools = []any{}
 	}
 
 	return AgentResponse{
@@ -67,7 +58,6 @@ func agentToResponse(a db.Agent) AgentResponse {
 		MaxConcurrentTasks: a.MaxConcurrentTasks,
 		OwnerID:            uuidToPtr(a.OwnerID),
 		Skills:             []SkillResponse{},
-		Tools:              tools,
 		CreatedAt:          timestampToString(a.CreatedAt),
 		UpdatedAt:          timestampToString(a.UpdatedAt),
 		ArchivedAt:         timestampToPtr(a.ArchivedAt),
@@ -211,7 +201,6 @@ type CreateAgentRequest struct {
 	RuntimeConfig      any     `json:"runtime_config"`
 	Visibility         string  `json:"visibility"`
 	MaxConcurrentTasks int32   `json:"max_concurrent_tasks"`
-	Tools              any     `json:"tools"`
 }
 
 func (h *Handler) CreateAgent(w http.ResponseWriter, r *http.Request) {
@@ -257,11 +246,6 @@ func (h *Handler) CreateAgent(w http.ResponseWriter, r *http.Request) {
 		rc = []byte("{}")
 	}
 
-	tools, _ := json.Marshal(req.Tools)
-	if req.Tools == nil {
-		tools = []byte("[]")
-	}
-
 	agent, err := h.Queries.CreateAgent(r.Context(), db.CreateAgentParams{
 		WorkspaceID:        parseUUID(workspaceID),
 		Name:               req.Name,
@@ -274,7 +258,6 @@ func (h *Handler) CreateAgent(w http.ResponseWriter, r *http.Request) {
 		Visibility:         req.Visibility,
 		MaxConcurrentTasks: req.MaxConcurrentTasks,
 		OwnerID:            parseUUID(ownerID),
-		Tools:              tools,
 	})
 	if err != nil {
 		slog.Warn("create agent failed", append(logger.RequestAttrs(r), "error", err, "workspace_id", workspaceID)...)
@@ -306,7 +289,6 @@ type UpdateAgentRequest struct {
 	Visibility         *string `json:"visibility"`
 	Status             *string `json:"status"`
 	MaxConcurrentTasks *int32  `json:"max_concurrent_tasks"`
-	Tools              any     `json:"tools"`
 }
 
 // canManageAgent checks whether the current user can update or archive an agent.
@@ -382,10 +364,6 @@ func (h *Handler) UpdateAgent(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.MaxConcurrentTasks != nil {
 		params.MaxConcurrentTasks = pgtype.Int4{Int32: *req.MaxConcurrentTasks, Valid: true}
-	}
-	if req.Tools != nil {
-		tools, _ := json.Marshal(req.Tools)
-		params.Tools = tools
 	}
 
 	agent, err := h.Queries.UpdateAgent(r.Context(), params)

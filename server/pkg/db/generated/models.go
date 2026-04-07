@@ -33,7 +33,6 @@ type Agent struct {
 	CreatedAt          pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
 	Description        string             `json:"description"`
-	Tools              []byte             `json:"tools"`
 	RuntimeID          pgtype.UUID        `json:"runtime_id"`
 	Instructions       string             `json:"instructions"`
 	ArchivedAt         pgtype.Timestamptz `json:"archived_at"`
