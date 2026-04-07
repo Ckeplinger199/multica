@@ -247,26 +247,56 @@ func (h *Handler) ClaimTaskByRuntime(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Include workspace ID and repos so the daemon can set up worktrees.
-	if issue, err := h.Queries.GetIssue(r.Context(), task.IssueID); err == nil {
-		resp.WorkspaceID = uuidToString(issue.WorkspaceID)
-		if ws, err := h.Queries.GetWorkspace(r.Context(), issue.WorkspaceID); err == nil && ws.Repos != nil {
-			var repos []RepoData
-			if json.Unmarshal(ws.Repos, &repos) == nil && len(repos) > 0 {
-				resp.Repos = repos
+	if task.IssueID.Valid {
+		// Issue-based task: get workspace from issue.
+		if issue, err := h.Queries.GetIssue(r.Context(), task.IssueID); err == nil {
+			resp.WorkspaceID = uuidToString(issue.WorkspaceID)
+			if ws, err := h.Queries.GetWorkspace(r.Context(), issue.WorkspaceID); err == nil && ws.Repos != nil {
+				var repos []RepoData
+				if json.Unmarshal(ws.Repos, &repos) == nil && len(repos) > 0 {
+					resp.Repos = repos
+				}
+			}
+		}
+
+		// Look up the prior session for this (agent, issue) pair so the daemon
+		// can resume the Claude Code conversation context.
+		if prior, err := h.Queries.GetLastTaskSession(r.Context(), db.GetLastTaskSessionParams{
+			AgentID: task.AgentID,
+			IssueID: task.IssueID,
+		}); err == nil && prior.SessionID.Valid {
+			resp.PriorSessionID = prior.SessionID.String
+			if prior.WorkDir.Valid {
+				resp.PriorWorkDir = prior.WorkDir.String
 			}
 		}
 	}
 
-	// Look up the prior session for this (agent, issue) pair so the daemon
-	// can resume the Claude Code conversation context.
-	if prior, err := h.Queries.GetLastTaskSession(r.Context(), db.GetLastTaskSessionParams{
-		AgentID: task.AgentID,
-		IssueID: task.IssueID,
-	}); err == nil && prior.SessionID.Valid {
-		resp.PriorSessionID = prior.SessionID.String
-		if prior.WorkDir.Valid {
-			resp.PriorWorkDir = prior.WorkDir.String
+	// For agentflow tasks, populate agentflow data and get workspace from agent.
+	if task.AgentflowRunID.Valid {
+		resp.AgentflowRunID = uuidToString(task.AgentflowRunID)
+		if run, err := h.Queries.GetAgentflowRun(r.Context(), task.AgentflowRunID); err == nil {
+			if af, err := h.Queries.GetAgentflow(r.Context(), run.AgentflowID); err == nil {
+				resp.Agentflow = &AgentflowTaskData{
+					ID:          uuidToString(af.ID),
+					Title:       af.Title,
+					Description: af.Description,
+				}
+				resp.WorkspaceID = uuidToString(af.WorkspaceID)
+				// Load workspace repos.
+				if ws, err := h.Queries.GetWorkspace(r.Context(), af.WorkspaceID); err == nil && ws.Repos != nil {
+					var repos []RepoData
+					if json.Unmarshal(ws.Repos, &repos) == nil && len(repos) > 0 {
+						resp.Repos = repos
+					}
+				}
+			}
 		}
+		// Update agentflow run status to running.
+		h.Queries.UpdateAgentflowRunStatus(r.Context(), db.UpdateAgentflowRunStatusParams{
+			ID:     task.AgentflowRunID,
+			Status: "running",
+		})
 	}
 
 	slog.Info("task claimed by runtime", "task_id", uuidToString(task.ID), "runtime_id", runtimeID, "agent_id", uuidToString(task.AgentID), "prior_session", resp.PriorSessionID)
@@ -326,12 +356,20 @@ func (h *Handler) ReportTaskProgress(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Look up task to get workspace ID via the associated issue.
+	// Look up task to get workspace ID via the associated issue or agentflow.
 	workspaceID := ""
 	task, err := h.Queries.GetAgentTask(r.Context(), parseUUID(taskID))
 	if err == nil {
-		if issue, err := h.Queries.GetIssue(r.Context(), task.IssueID); err == nil {
-			workspaceID = uuidToString(issue.WorkspaceID)
+		if task.IssueID.Valid {
+			if issue, err := h.Queries.GetIssue(r.Context(), task.IssueID); err == nil {
+				workspaceID = uuidToString(issue.WorkspaceID)
+			}
+		} else if task.AgentflowRunID.Valid {
+			if run, err := h.Queries.GetAgentflowRun(r.Context(), task.AgentflowRunID); err == nil {
+				if af, err := h.Queries.GetAgentflow(r.Context(), run.AgentflowID); err == nil {
+					workspaceID = uuidToString(af.WorkspaceID)
+				}
+			}
 		}
 	}
 
@@ -443,8 +481,16 @@ func (h *Handler) ReportTaskMessages(w http.ResponseWriter, r *http.Request) {
 	}
 
 	workspaceID := ""
-	if issue, err := h.Queries.GetIssue(r.Context(), task.IssueID); err == nil {
-		workspaceID = uuidToString(issue.WorkspaceID)
+	if task.IssueID.Valid {
+		if issue, err := h.Queries.GetIssue(r.Context(), task.IssueID); err == nil {
+			workspaceID = uuidToString(issue.WorkspaceID)
+		}
+	} else if task.AgentflowRunID.Valid {
+		if run, err := h.Queries.GetAgentflowRun(r.Context(), task.AgentflowRunID); err == nil {
+			if af, err := h.Queries.GetAgentflow(r.Context(), run.AgentflowID); err == nil {
+				workspaceID = uuidToString(af.WorkspaceID)
+			}
+		}
 	}
 
 	for _, msg := range req.Messages {

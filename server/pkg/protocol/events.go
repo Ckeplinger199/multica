@@ -61,4 +61,10 @@ const (
 	// Daemon events
 	EventDaemonHeartbeat = "daemon:heartbeat"
 	EventDaemonRegister  = "daemon:register"
+
+	// Agentflow events
+	EventAgentflowCreated    = "agentflow:created"
+	EventAgentflowUpdated    = "agentflow:updated"
+	EventAgentflowDeleted    = "agentflow:deleted"
+	EventAgentflowRunCreated = "agentflow_run:created"
 )

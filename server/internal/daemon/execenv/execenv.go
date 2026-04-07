@@ -30,6 +30,7 @@ type PrepareParams struct {
 type TaskContextForEnv struct {
 	IssueID           string
 	TriggerCommentID  string // comment that triggered this task (empty for on_assign)
+	AgentflowPrompt   string // prompt from agentflow description (empty for issue tasks)
 	AgentName         string
 	AgentInstructions string // agent identity/persona instructions, injected into CLAUDE.md
 	AgentSkills       []SkillContextForEnv

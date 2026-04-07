@@ -879,6 +879,9 @@ func (d *Daemon) runTask(ctx context.Context, task Task, provider string, taskLo
 		AgentSkills:       convertSkillsForEnv(skills),
 		Repos:             convertReposForEnv(task.Repos),
 	}
+	if task.Agentflow != nil {
+		taskCtx.AgentflowPrompt = task.Agentflow.Description
+	}
 
 	// Try to reuse the workdir from a previous task on the same (agent, issue) pair.
 	var env *execenv.Environment
@@ -908,7 +911,12 @@ func (d *Daemon) runTask(ctx context.Context, task Task, provider string, taskLo
 	// the same (agent, issue) pair. The work_dir path is stored in DB on
 	// task completion and passed back via PriorWorkDir on the next claim.
 
-	prompt := BuildPrompt(task)
+	var prompt string
+	if task.AgentflowRunID != "" {
+		prompt = BuildAgentflowPrompt(task)
+	} else {
+		prompt = BuildPrompt(task)
+	}
 
 	// Pass the daemon's auth credentials and context so the spawned agent CLI
 	// can call the Multica API and the local daemon (e.g. `multica repo checkout`).

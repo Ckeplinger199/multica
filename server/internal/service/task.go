@@ -108,6 +108,44 @@ func (s *TaskService) EnqueueTaskForMention(ctx context.Context, issue db.Issue,
 	return task, nil
 }
 
+// EnqueueTaskForAgentflow creates a queued task for an agentflow run.
+// Unlike issue tasks, agentflow tasks have no associated issue — the agent
+// receives instructions from the agentflow description instead.
+func (s *TaskService) EnqueueTaskForAgentflow(ctx context.Context, agentflow db.Agentflow, runID pgtype.UUID) (db.AgentTaskQueue, error) {
+	agent, err := s.Queries.GetAgent(ctx, agentflow.AgentID)
+	if err != nil {
+		slog.Error("agentflow task enqueue failed: agent not found", "agentflow_id", util.UUIDToString(agentflow.ID), "agent_id", util.UUIDToString(agentflow.AgentID), "error", err)
+		return db.AgentTaskQueue{}, fmt.Errorf("load agent: %w", err)
+	}
+	if agent.ArchivedAt.Valid {
+		slog.Debug("agentflow task enqueue skipped: agent is archived", "agentflow_id", util.UUIDToString(agentflow.ID), "agent_id", util.UUIDToString(agentflow.AgentID))
+		return db.AgentTaskQueue{}, fmt.Errorf("agent is archived")
+	}
+	if !agent.RuntimeID.Valid {
+		slog.Error("agentflow task enqueue failed: agent has no runtime", "agentflow_id", util.UUIDToString(agentflow.ID), "agent_id", util.UUIDToString(agentflow.AgentID))
+		return db.AgentTaskQueue{}, fmt.Errorf("agent has no runtime")
+	}
+
+	task, err := s.Queries.CreateAgentflowTask(ctx, db.CreateAgentflowTaskParams{
+		AgentID:        agentflow.AgentID,
+		RuntimeID:      agent.RuntimeID,
+		AgentflowRunID: runID,
+	})
+	if err != nil {
+		slog.Error("agentflow task enqueue failed", "agentflow_id", util.UUIDToString(agentflow.ID), "error", err)
+		return db.AgentTaskQueue{}, fmt.Errorf("create agentflow task: %w", err)
+	}
+
+	// Link the task back to the run.
+	_ = s.Queries.SetAgentflowRunTaskID(ctx, db.SetAgentflowRunTaskIDParams{
+		ID:     runID,
+		TaskID: task.ID,
+	})
+
+	slog.Info("agentflow task enqueued", "task_id", util.UUIDToString(task.ID), "agentflow_id", util.UUIDToString(agentflow.ID), "agent_id", util.UUIDToString(agentflow.AgentID))
+	return task, nil
+}
+
 // CancelTasksForIssue cancels all active tasks for an issue.
 func (s *TaskService) CancelTasksForIssue(ctx context.Context, issueID pgtype.UUID) error {
 	return s.Queries.CancelAgentTasksByIssue(ctx, issueID)
@@ -171,6 +209,7 @@ func (s *TaskService) ClaimTask(ctx context.Context, agentID pgtype.UUID) (*db.A
 
 // ClaimTaskForRuntime claims the next runnable task for a runtime while
 // still respecting each agent's max_concurrent_tasks limit.
+// It tries regular issue tasks first, then agentflow tasks.
 func (s *TaskService) ClaimTaskForRuntime(ctx context.Context, runtimeID pgtype.UUID) (*db.AgentTaskQueue, error) {
 	tasks, err := s.Queries.ListPendingTasksByRuntime(ctx, runtimeID)
 	if err != nil {
@@ -194,7 +233,57 @@ func (s *TaskService) ClaimTaskForRuntime(ctx context.Context, runtimeID pgtype.
 		}
 	}
 
+	// Try agentflow tasks if no regular tasks were claimed.
+	triedAgents = map[string]struct{}{}
+	for _, candidate := range tasks {
+		agentKey := util.UUIDToString(candidate.AgentID)
+		if _, seen := triedAgents[agentKey]; seen {
+			continue
+		}
+		triedAgents[agentKey] = struct{}{}
+
+		task, err := s.ClaimAgentflowTaskForAgent(ctx, candidate.AgentID)
+		if err != nil {
+			return nil, err
+		}
+		if task != nil && task.RuntimeID == runtimeID {
+			return task, nil
+		}
+	}
+
 	return nil, nil
+}
+
+// ClaimAgentflowTaskForAgent claims the next queued agentflow task for an agent,
+// respecting max_concurrent_tasks.
+func (s *TaskService) ClaimAgentflowTaskForAgent(ctx context.Context, agentID pgtype.UUID) (*db.AgentTaskQueue, error) {
+	agent, err := s.Queries.GetAgent(ctx, agentID)
+	if err != nil {
+		return nil, fmt.Errorf("agent not found: %w", err)
+	}
+
+	running, err := s.Queries.CountRunningTasks(ctx, agentID)
+	if err != nil {
+		return nil, fmt.Errorf("count running tasks: %w", err)
+	}
+	if running >= int64(agent.MaxConcurrentTasks) {
+		return nil, nil
+	}
+
+	task, err := s.Queries.ClaimAgentflowTask(ctx, agentID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("claim agentflow task: %w", err)
+	}
+
+	slog.Info("agentflow task claimed", "task_id", util.UUIDToString(task.ID), "agent_id", util.UUIDToString(agentID))
+
+	s.updateAgentStatus(ctx, agentID, "working")
+	s.broadcastTaskDispatch(ctx, task)
+
+	return &task, nil
 }
 
 // StartTask transitions a dispatched task to running.
@@ -238,15 +327,33 @@ func (s *TaskService) CompleteTask(ctx context.Context, taskID pgtype.UUID, resu
 
 	slog.Info("task completed", "task_id", util.UUIDToString(task.ID), "issue_id", util.UUIDToString(task.IssueID))
 
-	// Post agent output as a comment, but only for assignment-triggered tasks.
+	// Post agent output as a comment, but only for issue-based assignment-triggered tasks.
 	// Comment-triggered tasks: the agent replies via CLI with --parent, so
 	// posting here would create a duplicate.
-	if !task.TriggerCommentID.Valid {
+	// Agentflow tasks have no issue, so skip comment posting.
+	if task.IssueID.Valid && !task.TriggerCommentID.Valid {
 		var payload protocol.TaskCompletedPayload
 		if err := json.Unmarshal(result, &payload); err == nil {
 			if payload.Output != "" {
 				s.createAgentComment(ctx, task.IssueID, task.AgentID, redact.Text(payload.Output), "comment", task.TriggerCommentID)
 			}
+		}
+	}
+
+	// Update agentflow run status if this is an agentflow task.
+	if task.AgentflowRunID.Valid {
+		var payload protocol.TaskCompletedPayload
+		if err := json.Unmarshal(result, &payload); err == nil {
+			s.Queries.UpdateAgentflowRunResult(ctx, db.UpdateAgentflowRunResultParams{
+				ID:     task.AgentflowRunID,
+				Status: "completed",
+				Output: pgtype.Text{String: payload.Output, Valid: payload.Output != ""},
+			})
+		} else {
+			s.Queries.UpdateAgentflowRunStatus(ctx, db.UpdateAgentflowRunStatusParams{
+				ID:     task.AgentflowRunID,
+				Status: "completed",
+			})
 		}
 	}
 
@@ -285,9 +392,19 @@ func (s *TaskService) FailTask(ctx context.Context, taskID pgtype.UUID, errMsg s
 
 	slog.Warn("task failed", "task_id", util.UUIDToString(task.ID), "issue_id", util.UUIDToString(task.IssueID), "error", errMsg)
 
-	if errMsg != "" {
+	if errMsg != "" && task.IssueID.Valid {
 		s.createAgentComment(ctx, task.IssueID, task.AgentID, redact.Text(errMsg), "system", task.TriggerCommentID)
 	}
+
+	// Update agentflow run status if this is an agentflow task.
+	if task.AgentflowRunID.Valid {
+		s.Queries.UpdateAgentflowRunResult(ctx, db.UpdateAgentflowRunResultParams{
+			ID:     task.AgentflowRunID,
+			Status: "failed",
+			Error:  pgtype.Text{String: errMsg, Valid: errMsg != ""},
+		})
+	}
+
 	// Reconcile agent status
 	s.ReconcileAgentStatus(ctx, task.AgentID)
 
@@ -402,12 +519,19 @@ func (s *TaskService) broadcastTaskDispatch(ctx context.Context, task db.AgentTa
 	payload["task_id"] = util.UUIDToString(task.ID)
 	payload["runtime_id"] = util.UUIDToString(task.RuntimeID)
 
+	// Get workspace ID - from issue for issue tasks, from agent for agentflow tasks.
 	workspaceID := ""
-	if issue, err := s.Queries.GetIssue(ctx, task.IssueID); err == nil {
-		workspaceID = util.UUIDToString(issue.WorkspaceID)
+	if task.IssueID.Valid {
+		if issue, err := s.Queries.GetIssue(ctx, task.IssueID); err == nil {
+			workspaceID = util.UUIDToString(issue.WorkspaceID)
+		}
+	} else {
+		if agent, err := s.Queries.GetAgent(ctx, task.AgentID); err == nil {
+			workspaceID = util.UUIDToString(agent.WorkspaceID)
+		}
 	}
 	if workspaceID == "" {
-		return // Issue deleted; skip broadcast to avoid global leak
+		return // Cannot determine workspace; skip broadcast
 	}
 	s.Bus.Publish(events.Event{
 		Type:        protocol.EventTaskDispatch,
@@ -419,12 +543,19 @@ func (s *TaskService) broadcastTaskDispatch(ctx context.Context, task db.AgentTa
 }
 
 func (s *TaskService) broadcastTaskEvent(ctx context.Context, eventType string, task db.AgentTaskQueue) {
+	// Get workspace ID - from issue for issue tasks, from agent for agentflow tasks.
 	workspaceID := ""
-	if issue, err := s.Queries.GetIssue(ctx, task.IssueID); err == nil {
-		workspaceID = util.UUIDToString(issue.WorkspaceID)
+	if task.IssueID.Valid {
+		if issue, err := s.Queries.GetIssue(ctx, task.IssueID); err == nil {
+			workspaceID = util.UUIDToString(issue.WorkspaceID)
+		}
+	} else {
+		if agent, err := s.Queries.GetAgent(ctx, task.AgentID); err == nil {
+			workspaceID = util.UUIDToString(agent.WorkspaceID)
+		}
 	}
 	if workspaceID == "" {
-		return // Issue deleted; skip broadcast to avoid global leak
+		return // Cannot determine workspace; skip broadcast
 	}
 	s.Bus.Publish(events.Event{
 		Type:        eventType,

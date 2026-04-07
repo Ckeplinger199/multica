@@ -206,6 +206,26 @@ func NewRouter(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus) chi.Route
 				})
 			})
 
+			// Agentflows
+			r.Route("/api/agentflows", func(r chi.Router) {
+				r.Get("/", h.ListAgentflows)
+				r.With(middleware.RequireWorkspaceRole(queries, "owner", "admin")).Post("/", h.CreateAgentflow)
+				r.Route("/{id}", func(r chi.Router) {
+					r.Get("/", h.GetAgentflow)
+					r.Put("/", h.UpdateAgentflow)
+					r.Delete("/", h.DeleteAgentflow)
+					r.Post("/run", h.TriggerAgentflowRun)
+					r.Get("/runs", h.ListAgentflowRuns)
+					r.Post("/triggers", h.CreateAgentflowTrigger)
+				})
+			})
+			r.Route("/api/agentflow-triggers", func(r chi.Router) {
+				r.Route("/{id}", func(r chi.Router) {
+					r.Put("/", h.UpdateAgentflowTrigger)
+					r.Delete("/", h.DeleteAgentflowTrigger)
+				})
+			})
+
 			// Skills
 			r.Route("/api/skills", func(r chi.Router) {
 				r.Get("/", h.ListSkills)

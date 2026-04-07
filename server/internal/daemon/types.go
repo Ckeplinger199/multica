@@ -30,9 +30,18 @@ type Task struct {
 	WorkspaceID    string     `json:"workspace_id"`
 	Agent          *AgentData `json:"agent,omitempty"`
 	Repos          []RepoData `json:"repos,omitempty"`
-	PriorSessionID   string     `json:"prior_session_id,omitempty"`    // Claude session ID from a previous task on this issue
-	PriorWorkDir     string     `json:"prior_work_dir,omitempty"`     // work_dir from a previous task on this issue
-	TriggerCommentID string     `json:"trigger_comment_id,omitempty"` // comment that triggered this task
+	PriorSessionID   string         `json:"prior_session_id,omitempty"`    // Claude session ID from a previous task on this issue
+	PriorWorkDir     string         `json:"prior_work_dir,omitempty"`     // work_dir from a previous task on this issue
+	TriggerCommentID string         `json:"trigger_comment_id,omitempty"` // comment that triggered this task
+	AgentflowRunID   string         `json:"agentflow_run_id,omitempty"`   // agentflow run that triggered this task
+	Agentflow        *AgentflowData `json:"agentflow,omitempty"`          // agentflow details for prompt building
+}
+
+// AgentflowData holds agentflow context for prompt building.
+type AgentflowData struct {
+	ID          string `json:"id"`
+	Title       string `json:"title"`
+	Description string `json:"description"` // this is the prompt template
 }
 
 // AgentData holds agent details returned by the claim endpoint.

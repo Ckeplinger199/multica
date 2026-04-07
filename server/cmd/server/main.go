@@ -14,6 +14,7 @@ import (
 	"github.com/multica-ai/multica/server/internal/events"
 	"github.com/multica-ai/multica/server/internal/logger"
 	"github.com/multica-ai/multica/server/internal/realtime"
+	"github.com/multica-ai/multica/server/internal/service"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
 )
 
@@ -68,6 +69,10 @@ func main() {
 	// Start background sweeper to mark stale runtimes as offline.
 	sweepCtx, sweepCancel := context.WithCancel(context.Background())
 	go runRuntimeSweeper(sweepCtx, queries, bus)
+
+	// Start agentflow scheduler to fire due schedule triggers.
+	taskSvc := service.NewTaskService(queries, hub, bus)
+	go runAgentflowScheduler(sweepCtx, queries, bus, taskSvc)
 
 	// Graceful shutdown
 	go func() {

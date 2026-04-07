@@ -72,6 +72,14 @@ type RepoData struct {
 	Description string `json:"description"`
 }
 
+// AgentflowTaskData holds agentflow info included in claim responses so the
+// daemon can build the agentflow-specific prompt and execution context.
+type AgentflowTaskData struct {
+	ID          string `json:"id"`
+	Title       string `json:"title"`
+	Description string `json:"description"`
+}
+
 type AgentTaskResponse struct {
 	ID             string         `json:"id"`
 	AgentID        string         `json:"agent_id"`
@@ -88,9 +96,11 @@ type AgentTaskResponse struct {
 	Agent          *TaskAgentData `json:"agent,omitempty"`
 	Repos          []RepoData     `json:"repos,omitempty"`
 	CreatedAt      string         `json:"created_at"`
-	PriorSessionID   string         `json:"prior_session_id,omitempty"`    // session ID from a previous task on same issue
-	PriorWorkDir     string         `json:"prior_work_dir,omitempty"`     // work_dir from a previous task on same issue
-	TriggerCommentID *string        `json:"trigger_comment_id,omitempty"` // comment that triggered this task
+	PriorSessionID   string             `json:"prior_session_id,omitempty"`    // session ID from a previous task on same issue
+	PriorWorkDir     string             `json:"prior_work_dir,omitempty"`     // work_dir from a previous task on same issue
+	TriggerCommentID *string            `json:"trigger_comment_id,omitempty"` // comment that triggered this task
+	AgentflowRunID   string             `json:"agentflow_run_id,omitempty"`   // agentflow run that triggered this task
+	Agentflow        *AgentflowTaskData `json:"agentflow,omitempty"`          // agentflow details for prompt building
 }
 
 // TaskAgentData holds agent info included in claim responses so the daemon
@@ -107,7 +117,7 @@ func taskToResponse(t db.AgentTaskQueue) AgentTaskResponse {
 	if t.Result != nil {
 		json.Unmarshal(t.Result, &result)
 	}
-	return AgentTaskResponse{
+	resp := AgentTaskResponse{
 		ID:           uuidToString(t.ID),
 		AgentID:      uuidToString(t.AgentID),
 		RuntimeID:    uuidToString(t.RuntimeID),
@@ -122,6 +132,10 @@ func taskToResponse(t db.AgentTaskQueue) AgentTaskResponse {
 		CreatedAt:        timestampToString(t.CreatedAt),
 		TriggerCommentID: uuidToPtr(t.TriggerCommentID),
 	}
+	if t.AgentflowRunID.Valid {
+		resp.AgentflowRunID = uuidToString(t.AgentflowRunID)
+	}
+	return resp
 }
 
 func (h *Handler) ListAgents(w http.ResponseWriter, r *http.Request) {

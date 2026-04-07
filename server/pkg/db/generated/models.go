@@ -77,6 +77,46 @@ type AgentTaskQueue struct {
 	SessionID        pgtype.Text        `json:"session_id"`
 	WorkDir          pgtype.Text        `json:"work_dir"`
 	TriggerCommentID pgtype.UUID        `json:"trigger_comment_id"`
+	AgentflowRunID   pgtype.UUID        `json:"agentflow_run_id"`
+}
+
+type Agentflow struct {
+	ID                pgtype.UUID        `json:"id"`
+	WorkspaceID       pgtype.UUID        `json:"workspace_id"`
+	AgentID           pgtype.UUID        `json:"agent_id"`
+	Title             string             `json:"title"`
+	Description       string             `json:"description"`
+	Status            string             `json:"status"`
+	ConcurrencyPolicy string             `json:"concurrency_policy"`
+	CreatedBy         pgtype.UUID        `json:"created_by"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
+}
+
+type AgentflowRun struct {
+	ID            pgtype.UUID        `json:"id"`
+	AgentflowID   pgtype.UUID        `json:"agentflow_id"`
+	TriggerID     pgtype.UUID        `json:"trigger_id"`
+	AgentID       pgtype.UUID        `json:"agent_id"`
+	Status        string             `json:"status"`
+	TaskID        pgtype.UUID        `json:"task_id"`
+	LinkedIssueID pgtype.UUID        `json:"linked_issue_id"`
+	Output        pgtype.Text        `json:"output"`
+	Error         pgtype.Text        `json:"error"`
+	StartedAt     pgtype.Timestamptz `json:"started_at"`
+	CompletedAt   pgtype.Timestamptz `json:"completed_at"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+}
+
+type AgentflowTrigger struct {
+	ID          pgtype.UUID        `json:"id"`
+	AgentflowID pgtype.UUID        `json:"agentflow_id"`
+	Kind        string             `json:"kind"`
+	Config      []byte             `json:"config"`
+	Enabled     bool               `json:"enabled"`
+	NextRunAt   pgtype.Timestamptz `json:"next_run_at"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
 }
 
 type Attachment struct {
