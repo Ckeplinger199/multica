@@ -129,7 +129,7 @@ dev:
 	cd server && go run ./cmd/server
 
 daemon:
-	@$(MAKE) multica MULTICA_ARGS="daemon"
+	@$(MAKE) multica MULTICA_ARGS="daemon start --foreground"
 
 cli:
 	@$(MAKE) multica MULTICA_ARGS="$(MULTICA_ARGS)"
