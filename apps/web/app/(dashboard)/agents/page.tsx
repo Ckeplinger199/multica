@@ -12,7 +12,6 @@ import {
   FileText,
   BookOpenText,
   MessageSquare,
-  Timer,
   Trash2,
   Save,
   Key,
@@ -36,8 +35,6 @@ import type {
   AgentStatus,
   AgentVisibility,
   AgentTool,
-  AgentTrigger,
-  AgentTriggerType,
   AgentTask,
   RuntimeDevice,
   CreateAgentRequest,
@@ -148,10 +145,6 @@ function CreateAgentDialog({
         description: description.trim(),
         runtime_id: selectedRuntime.id,
         visibility,
-        triggers: [
-          { id: generateId(), type: "on_assign", enabled: true, config: {} },
-          { id: generateId(), type: "on_comment", enabled: true, config: {} },
-        ],
       });
       onClose();
     } catch (err) {
@@ -839,224 +832,6 @@ function ToolsTab({
 }
 
 // ---------------------------------------------------------------------------
-// Triggers Tab
-// ---------------------------------------------------------------------------
-
-function TriggersTab({
-  agent,
-  onSave,
-}: {
-  agent: Agent;
-  onSave: (triggers: AgentTrigger[]) => Promise<void>;
-}) {
-  const [triggers, setTriggers] = useState<AgentTrigger[]>(agent.triggers ?? []);
-  const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    setTriggers(agent.triggers ?? []);
-  }, [agent.id, agent.triggers]);
-
-  const isDirty = JSON.stringify(triggers) !== JSON.stringify(agent.triggers ?? []);
-
-  const handleSave = async () => {
-    setSaving(true);
-    try {
-      await onSave(triggers);
-    } catch {
-      // toast handled by parent
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const toggleTrigger = (triggerId: string) => {
-    setTriggers((prev) =>
-      prev.map((t) => (t.id === triggerId ? { ...t, enabled: !t.enabled } : t)),
-    );
-  };
-
-  const removeTrigger = (triggerId: string) => {
-    setTriggers((prev) => prev.filter((t) => t.id !== triggerId));
-  };
-
-  const addTrigger = (type: AgentTriggerType) => {
-    const newTrigger: AgentTrigger = {
-      id: generateId(),
-      type,
-      enabled: true,
-      config: type === "scheduled" ? { cron: "0 9 * * 1-5", timezone: "UTC" } : {},
-    };
-    setTriggers((prev) => [...prev, newTrigger]);
-  };
-
-  const updateTriggerConfig = (triggerId: string, config: Record<string, unknown>) => {
-    setTriggers((prev) =>
-      prev.map((t) => (t.id === triggerId ? { ...t, config } : t)),
-    );
-  };
-
-  return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h3 className="text-sm font-semibold">Triggers</h3>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            Configure when this agent should start working.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          {isDirty && (
-            <Button
-              onClick={handleSave}
-              disabled={saving}
-              size="xs"
-            >
-              <Save className="h-3 w-3" />
-              {saving ? "Saving..." : "Save"}
-            </Button>
-          )}
-        </div>
-      </div>
-
-      <div className="space-y-2">
-        {triggers.map((trigger) => {
-          const scheduledConfig = (trigger.config ?? {}) as {
-            cron?: string;
-            timezone?: string;
-          };
-
-          return (
-          <div
-            key={trigger.id}
-            className="rounded-lg border px-4 py-3"
-          >
-            <div className="flex items-center gap-3">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted">
-                {trigger.type === "on_assign" ? (
-                  <Bot className="h-4 w-4 text-muted-foreground" />
-                ) : trigger.type === "on_comment" ? (
-                  <MessageSquare className="h-4 w-4 text-muted-foreground" />
-                ) : (
-                  <Timer className="h-4 w-4 text-muted-foreground" />
-                )}
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="text-sm font-medium">
-                  {trigger.type === "on_assign"
-                    ? "On Issue Assign"
-                    : trigger.type === "on_comment"
-                      ? "On Comment"
-                      : "Scheduled"}
-                </div>
-                <div className="text-xs text-muted-foreground">
-                  {trigger.type === "on_assign"
-                    ? "Runs when an issue is assigned to this agent"
-                    : trigger.type === "on_comment"
-                      ? "Runs when a member comments on the agent's issue"
-                      : `Cron: ${scheduledConfig.cron ?? "Not set"}`}
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => toggleTrigger(trigger.id)}
-                  className={`relative h-5 w-9 rounded-full transition-colors ${
-                    trigger.enabled ? "bg-primary" : "bg-muted"
-                  }`}
-                >
-                  <span
-                    className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${
-                      trigger.enabled ? "left-4.5" : "left-0.5"
-                    }`}
-                  />
-                </button>
-                <Button
-                  variant="ghost"
-                  size="icon-xs"
-                  onClick={() => removeTrigger(trigger.id)}
-                  className="text-muted-foreground hover:text-destructive"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </Button>
-              </div>
-            </div>
-
-            {trigger.type === "scheduled" && (
-              <div className="mt-3 grid grid-cols-2 gap-3 pl-12">
-                <div>
-                  <Label className="text-xs text-muted-foreground">
-                    Cron Expression
-                  </Label>
-                  <Input
-                    type="text"
-                    value={scheduledConfig.cron ?? ""}
-                    onChange={(e) =>
-                      updateTriggerConfig(trigger.id, {
-                        ...scheduledConfig,
-                        cron: e.target.value,
-                      })
-                    }
-                    placeholder="0 9 * * 1-5"
-                    className="mt-1 text-xs font-mono"
-                  />
-                </div>
-                <div>
-                  <Label className="text-xs text-muted-foreground">
-                    Timezone
-                  </Label>
-                  <Input
-                    type="text"
-                    value={scheduledConfig.timezone ?? ""}
-                    onChange={(e) =>
-                      updateTriggerConfig(trigger.id, {
-                        ...scheduledConfig,
-                        timezone: e.target.value,
-                      })
-                    }
-                    placeholder="UTC"
-                    className="mt-1 text-xs"
-                  />
-                </div>
-              </div>
-            )}
-          </div>
-          );
-        })}
-      </div>
-
-      <div className="flex gap-2">
-        <Button
-          variant="outline"
-          size="xs"
-          onClick={() => addTrigger("on_assign")}
-          className="border-dashed text-muted-foreground hover:text-foreground"
-        >
-          <Bot className="h-3 w-3" />
-          Add On Assign
-        </Button>
-        <Button
-          variant="outline"
-          size="xs"
-          onClick={() => addTrigger("on_comment")}
-          className="border-dashed text-muted-foreground hover:text-foreground"
-        >
-          <MessageSquare className="h-3 w-3" />
-          Add On Comment
-        </Button>
-        <Button
-          variant="outline"
-          size="xs"
-          onClick={() => addTrigger("scheduled")}
-          className="border-dashed text-muted-foreground hover:text-foreground"
-        >
-          <Timer className="h-3 w-3" />
-          Add Scheduled
-        </Button>
-      </div>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
 // Tasks Tab
 // ---------------------------------------------------------------------------
 
@@ -1366,13 +1141,12 @@ function SettingsTab({
 // Agent Detail
 // ---------------------------------------------------------------------------
 
-type DetailTab = "instructions" | "skills" | "tools" | "triggers" | "tasks" | "settings";
+type DetailTab = "instructions" | "skills" | "tools" | "tasks" | "settings";
 
 const detailTabs: { id: DetailTab; label: string; icon: typeof FileText }[] = [
   { id: "instructions", label: "Instructions", icon: FileText },
   { id: "skills", label: "Skills", icon: BookOpenText },
   { id: "tools", label: "Tools", icon: Wrench },
-  { id: "triggers", label: "Triggers", icon: Timer },
   { id: "tasks", label: "Tasks", icon: ListTodo },
   { id: "settings", label: "Settings", icon: Settings },
 ];
@@ -1490,12 +1264,6 @@ function AgentDetail({
           <ToolsTab
             agent={agent}
             onSave={(tools) => onUpdate(agent.id, { tools })}
-          />
-        )}
-        {activeTab === "triggers" && (
-          <TriggersTab
-            agent={agent}
-            onSave={(triggers) => onUpdate(agent.id, { triggers })}
           />
         )}
         {activeTab === "tasks" && <TasksTab agent={agent} />}

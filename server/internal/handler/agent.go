@@ -29,7 +29,6 @@ type AgentResponse struct {
 	OwnerID            *string         `json:"owner_id"`
 	Skills             []SkillResponse `json:"skills"`
 	Tools              any             `json:"tools"`
-	Triggers           any             `json:"triggers"`
 	CreatedAt          string          `json:"created_at"`
 	UpdatedAt          string          `json:"updated_at"`
 	ArchivedAt         *string         `json:"archived_at"`
@@ -53,14 +52,6 @@ func agentToResponse(a db.Agent) AgentResponse {
 		tools = []any{}
 	}
 
-	var triggers any
-	if a.Triggers != nil {
-		json.Unmarshal(a.Triggers, &triggers)
-	}
-	if triggers == nil {
-		triggers = []any{}
-	}
-
 	return AgentResponse{
 		ID:                 uuidToString(a.ID),
 		WorkspaceID:        uuidToString(a.WorkspaceID),
@@ -77,7 +68,6 @@ func agentToResponse(a db.Agent) AgentResponse {
 		OwnerID:            uuidToPtr(a.OwnerID),
 		Skills:             []SkillResponse{},
 		Tools:              tools,
-		Triggers:           triggers,
 		CreatedAt:          timestampToString(a.CreatedAt),
 		UpdatedAt:          timestampToString(a.UpdatedAt),
 		ArchivedAt:         timestampToPtr(a.ArchivedAt),
@@ -222,7 +212,6 @@ type CreateAgentRequest struct {
 	Visibility         string  `json:"visibility"`
 	MaxConcurrentTasks int32   `json:"max_concurrent_tasks"`
 	Tools              any     `json:"tools"`
-	Triggers           any     `json:"triggers"`
 }
 
 func (h *Handler) CreateAgent(w http.ResponseWriter, r *http.Request) {
@@ -273,11 +262,6 @@ func (h *Handler) CreateAgent(w http.ResponseWriter, r *http.Request) {
 		tools = []byte("[]")
 	}
 
-	triggers, _ := json.Marshal(req.Triggers)
-	if req.Triggers == nil {
-		triggers = defaultAgentTriggers()
-	}
-
 	agent, err := h.Queries.CreateAgent(r.Context(), db.CreateAgentParams{
 		WorkspaceID:        parseUUID(workspaceID),
 		Name:               req.Name,
@@ -291,7 +275,6 @@ func (h *Handler) CreateAgent(w http.ResponseWriter, r *http.Request) {
 		MaxConcurrentTasks: req.MaxConcurrentTasks,
 		OwnerID:            parseUUID(ownerID),
 		Tools:              tools,
-		Triggers:           triggers,
 	})
 	if err != nil {
 		slog.Warn("create agent failed", append(logger.RequestAttrs(r), "error", err, "workspace_id", workspaceID)...)
@@ -324,7 +307,6 @@ type UpdateAgentRequest struct {
 	Status             *string `json:"status"`
 	MaxConcurrentTasks *int32  `json:"max_concurrent_tasks"`
 	Tools              any     `json:"tools"`
-	Triggers           any     `json:"triggers"`
 }
 
 // canManageAgent checks whether the current user can update or archive an agent.
@@ -404,10 +386,6 @@ func (h *Handler) UpdateAgent(w http.ResponseWriter, r *http.Request) {
 	if req.Tools != nil {
 		tools, _ := json.Marshal(req.Tools)
 		params.Tools = tools
-	}
-	if req.Triggers != nil {
-		triggers, _ := json.Marshal(req.Triggers)
-		params.Triggers = triggers
 	}
 
 	agent, err := h.Queries.UpdateAgent(r.Context(), params)
