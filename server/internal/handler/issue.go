@@ -289,6 +289,15 @@ func (h *Handler) CreateIssue(w http.ResponseWriter, r *http.Request) {
 	var parentIssueID pgtype.UUID
 	if req.ParentIssueID != nil {
 		parentIssueID = parseUUID(*req.ParentIssueID)
+		// Validate parent exists in the same workspace.
+		parent, err := h.Queries.GetIssueInWorkspace(r.Context(), db.GetIssueInWorkspaceParams{
+			ID:          parentIssueID,
+			WorkspaceID: parseUUID(workspaceID),
+		})
+		if err != nil || !parent.ID.Valid {
+			writeError(w, http.StatusBadRequest, "parent issue not found in this workspace")
+			return
+		}
 	}
 
 	var dueDate pgtype.Timestamptz
@@ -474,7 +483,34 @@ func (h *Handler) UpdateIssue(w http.ResponseWriter, r *http.Request) {
 	}
 	if _, ok := rawFields["parent_issue_id"]; ok {
 		if req.ParentIssueID != nil {
-			params.ParentIssueID = parseUUID(*req.ParentIssueID)
+			newParentID := parseUUID(*req.ParentIssueID)
+			// Cannot set self as parent.
+			if uuidToString(newParentID) == id {
+				writeError(w, http.StatusBadRequest, "an issue cannot be its own parent")
+				return
+			}
+			// Validate parent exists in the same workspace.
+			if _, err := h.Queries.GetIssueInWorkspace(r.Context(), db.GetIssueInWorkspaceParams{
+				ID:          newParentID,
+				WorkspaceID: prevIssue.WorkspaceID,
+			}); err != nil {
+				writeError(w, http.StatusBadRequest, "parent issue not found in this workspace")
+				return
+			}
+			// Cycle detection: walk up from the new parent to ensure we don't reach this issue.
+			cursor := newParentID
+			for depth := 0; depth < 10; depth++ {
+				ancestor, err := h.Queries.GetIssue(r.Context(), cursor)
+				if err != nil || !ancestor.ParentIssueID.Valid {
+					break
+				}
+				if uuidToString(ancestor.ParentIssueID) == id {
+					writeError(w, http.StatusBadRequest, "circular parent relationship detected")
+					return
+				}
+				cursor = ancestor.ParentIssueID
+			}
+			params.ParentIssueID = newParentID
 		} else {
 			params.ParentIssueID = pgtype.UUID{Valid: false} // explicit null = remove parent
 		}

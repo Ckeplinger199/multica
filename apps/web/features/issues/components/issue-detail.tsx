@@ -250,7 +250,7 @@ export function IssueDetail({ issueId, onDelete, defaultSidebarOpen = true, layo
     subscribers, loading: subscribersLoading, isSubscribed, toggleSubscribe: handleToggleSubscribe, toggleSubscriber,
   } = useIssueSubscribers(id, user?.id);
 
-  // Sub-issue state
+  // Sub-issue state — derive from store when possible, fetch otherwise
   const [parentIssue, setParentIssue] = useState<Issue | null>(null);
   const [childIssues, setChildIssues] = useState<Issue[]>([]);
 
@@ -260,15 +260,27 @@ export function IssueDetail({ issueId, onDelete, defaultSidebarOpen = true, layo
       setParentIssue(null);
       return;
     }
-    api.getIssue(issue.parent_issue_id).then(setParentIssue).catch(() => setParentIssue(null));
-  }, [issue?.parent_issue_id]);
+    // Try store first, then fetch
+    const storeParent = allIssues.find((i) => i.id === issue.parent_issue_id);
+    if (storeParent) {
+      setParentIssue(storeParent);
+    } else {
+      api.getIssue(issue.parent_issue_id).then(setParentIssue).catch(() => setParentIssue(null));
+    }
+  }, [issue?.parent_issue_id, allIssues]);
 
-  // Fetch child issues — re-run when global issue list changes (e.g. sub-issue created via WS)
-  const issueCount = allIssues.length;
+  // Fetch child issues once, then keep in sync via store
+  const childIssuesFromStore = allIssues.filter((i) => i.parent_issue_id === id);
   useEffect(() => {
     if (!issue) return;
+    // If store has children, use them directly
+    if (childIssuesFromStore.length > 0) {
+      setChildIssues(childIssuesFromStore);
+      return;
+    }
+    // Fetch from API (children may not be in the store yet, e.g. deep-linked)
     api.listChildIssues(issue.id).then((r) => setChildIssues(r.issues)).catch(() => setChildIssues([]));
-  }, [issue?.id, issueCount]);
+  }, [issue?.id, childIssuesFromStore.length]);
 
   const loading = issueLoading;
 
