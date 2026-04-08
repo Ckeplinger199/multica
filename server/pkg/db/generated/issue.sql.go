@@ -381,53 +381,80 @@ func (q *Queries) ListOpenIssues(ctx context.Context, arg ListOpenIssuesParams) 
 }
 
 const searchIssues = `-- name: SearchIssues :many
-SELECT id, workspace_id, title, description, status, priority, assignee_type, assignee_id, creator_type, creator_id, parent_issue_id, acceptance_criteria, context_refs, position, due_date, created_at, updated_at, number, COUNT(*) OVER() AS total_count FROM issue
-WHERE workspace_id = $1
+SELECT i.id, i.workspace_id, i.title, i.description, i.status, i.priority, i.assignee_type, i.assignee_id, i.creator_type, i.creator_id, i.parent_issue_id, i.acceptance_criteria, i.context_refs, i.position, i.due_date, i.created_at, i.updated_at, i.number,
+  COUNT(*) OVER() AS total_count,
+  CASE
+    WHEN i.title LIKE '%' || $1 || '%' THEN 'title'
+    WHEN COALESCE(i.description, '') LIKE '%' || $1 || '%' THEN 'description'
+    ELSE 'comment'
+  END AS match_source,
+  CASE
+    WHEN i.title LIKE '%' || $1 || '%' THEN ''
+    WHEN COALESCE(i.description, '') LIKE '%' || $1 || '%' THEN ''
+    ELSE COALESCE(
+      (SELECT c.content FROM comment c
+       WHERE c.issue_id = i.id AND c.content LIKE '%' || $1 || '%'
+       ORDER BY c.created_at DESC LIMIT 1),
+      ''
+    )
+  END AS matched_comment_content
+FROM issue i
+WHERE i.workspace_id = $2
   AND (
-    title LIKE '%' || $2 || '%'
-    OR COALESCE(description, '') LIKE '%' || $2 || '%'
+    i.title LIKE '%' || $1 || '%'
+    OR COALESCE(i.description, '') LIKE '%' || $1 || '%'
+    OR EXISTS (
+      SELECT 1 FROM comment c
+      WHERE c.issue_id = i.id AND c.content LIKE '%' || $1 || '%'
+    )
   )
-  AND ($3::boolean OR status NOT IN ('done', 'cancelled'))
+  AND ($3::boolean OR i.status NOT IN ('done', 'cancelled'))
 ORDER BY
-  CASE WHEN title LIKE '%' || $2 || '%' THEN 0 ELSE 1 END,
-  updated_at DESC
+  CASE
+    WHEN i.title LIKE '%' || $1 || '%' THEN 0
+    WHEN COALESCE(i.description, '') LIKE '%' || $1 || '%' THEN 1
+    ELSE 2
+  END,
+  i.updated_at DESC
 LIMIT $5 OFFSET $4
 `
 
 type SearchIssuesParams struct {
-	WorkspaceID   pgtype.UUID `json:"workspace_id"`
 	Query         pgtype.Text `json:"query"`
+	WorkspaceID   pgtype.UUID `json:"workspace_id"`
 	IncludeClosed bool        `json:"include_closed"`
 	SearchOffset  int32       `json:"search_offset"`
 	SearchLimit   int32       `json:"search_limit"`
 }
 
 type SearchIssuesRow struct {
-	ID                 pgtype.UUID        `json:"id"`
-	WorkspaceID        pgtype.UUID        `json:"workspace_id"`
-	Title              string             `json:"title"`
-	Description        pgtype.Text        `json:"description"`
-	Status             string             `json:"status"`
-	Priority           string             `json:"priority"`
-	AssigneeType       pgtype.Text        `json:"assignee_type"`
-	AssigneeID         pgtype.UUID        `json:"assignee_id"`
-	CreatorType        string             `json:"creator_type"`
-	CreatorID          pgtype.UUID        `json:"creator_id"`
-	ParentIssueID      pgtype.UUID        `json:"parent_issue_id"`
-	AcceptanceCriteria []byte             `json:"acceptance_criteria"`
-	ContextRefs        []byte             `json:"context_refs"`
-	Position           float64            `json:"position"`
-	DueDate            pgtype.Timestamptz `json:"due_date"`
-	CreatedAt          pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
-	Number             int32              `json:"number"`
-	TotalCount         int64              `json:"total_count"`
+	ID                    pgtype.UUID        `json:"id"`
+	WorkspaceID           pgtype.UUID        `json:"workspace_id"`
+	Title                 string             `json:"title"`
+	Description           pgtype.Text        `json:"description"`
+	Status                string             `json:"status"`
+	Priority              string             `json:"priority"`
+	AssigneeType          pgtype.Text        `json:"assignee_type"`
+	AssigneeID            pgtype.UUID        `json:"assignee_id"`
+	CreatorType           string             `json:"creator_type"`
+	CreatorID             pgtype.UUID        `json:"creator_id"`
+	ParentIssueID         pgtype.UUID        `json:"parent_issue_id"`
+	AcceptanceCriteria    []byte             `json:"acceptance_criteria"`
+	ContextRefs           []byte             `json:"context_refs"`
+	Position              float64            `json:"position"`
+	DueDate               pgtype.Timestamptz `json:"due_date"`
+	CreatedAt             pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt             pgtype.Timestamptz `json:"updated_at"`
+	Number                int32              `json:"number"`
+	TotalCount            int64              `json:"total_count"`
+	MatchSource           string             `json:"match_source"`
+	MatchedCommentContent interface{}        `json:"matched_comment_content"`
 }
 
 func (q *Queries) SearchIssues(ctx context.Context, arg SearchIssuesParams) ([]SearchIssuesRow, error) {
 	rows, err := q.db.Query(ctx, searchIssues,
-		arg.WorkspaceID,
 		arg.Query,
+		arg.WorkspaceID,
 		arg.IncludeClosed,
 		arg.SearchOffset,
 		arg.SearchLimit,
@@ -459,6 +486,8 @@ func (q *Queries) SearchIssues(ctx context.Context, arg SearchIssuesParams) ([]S
 			&i.UpdatedAt,
 			&i.Number,
 			&i.TotalCount,
+			&i.MatchSource,
+			&i.MatchedCommentContent,
 		); err != nil {
 			return nil, err
 		}

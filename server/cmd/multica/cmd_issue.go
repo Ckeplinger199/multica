@@ -831,19 +831,27 @@ func runIssueSearch(cmd *cobra.Command, args []string) error {
 		return cli.PrintJSON(os.Stdout, result)
 	}
 
-	headers := []string{"ID", "IDENTIFIER", "TITLE", "STATUS", "PRIORITY"}
+	headers := []string{"ID", "IDENTIFIER", "TITLE", "STATUS", "MATCH"}
 	rows := make([][]string, 0, len(issuesRaw))
 	for _, raw := range issuesRaw {
 		issue, ok := raw.(map[string]any)
 		if !ok {
 			continue
 		}
+		matchInfo := strVal(issue, "match_source")
+		if snippet := strVal(issue, "matched_snippet"); snippet != "" {
+			if utf8.RuneCountInString(snippet) > 50 {
+				runes := []rune(snippet)
+				snippet = string(runes[:47]) + "..."
+			}
+			matchInfo += ": " + snippet
+		}
 		rows = append(rows, []string{
 			truncateID(strVal(issue, "id")),
 			strVal(issue, "identifier"),
 			strVal(issue, "title"),
 			strVal(issue, "status"),
-			strVal(issue, "priority"),
+			matchInfo,
 		})
 	}
 	cli.PrintTable(os.Stdout, headers, rows)

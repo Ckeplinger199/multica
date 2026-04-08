@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2 } from "lucide-react";
-import type { Issue } from "@/shared/types";
+import { Loader2, MessageSquare } from "lucide-react";
+import type { SearchIssueResult } from "@/shared/types";
 import { api } from "@/shared/api";
 import { StatusIcon } from "@/features/issues";
 import { STATUS_CONFIG } from "@/features/issues/config";
@@ -21,7 +21,7 @@ export function SearchCommand() {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
-  const [results, setResults] = useState<Issue[]>([]);
+  const [results, setResults] = useState<SearchIssueResult[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -122,16 +122,28 @@ export function SearchCommand() {
                   onSelect={handleSelect}
                   className="gap-3"
                 >
-                  <StatusIcon status={issue.status} className="size-4 shrink-0" />
-                  <span className="text-xs text-muted-foreground shrink-0">
-                    {issue.identifier}
-                  </span>
-                  <span className="truncate">{issue.title}</span>
-                  <span
-                    className={`ml-auto text-xs shrink-0 ${STATUS_CONFIG[issue.status].iconColor}`}
-                  >
-                    {STATUS_CONFIG[issue.status].label}
-                  </span>
+                  <div className="flex flex-col gap-0.5 min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <StatusIcon status={issue.status} className="size-4 shrink-0" />
+                      <span className="text-xs text-muted-foreground shrink-0">
+                        {issue.identifier}
+                      </span>
+                      <span className="truncate">{issue.title}</span>
+                      <span
+                        className={`ml-auto text-xs shrink-0 ${STATUS_CONFIG[issue.status].iconColor}`}
+                      >
+                        {STATUS_CONFIG[issue.status].label}
+                      </span>
+                    </div>
+                    {issue.match_source === "comment" && issue.matched_snippet && (
+                      <div className="flex items-start gap-1.5 pl-6">
+                        <MessageSquare className="size-3 shrink-0 text-muted-foreground mt-0.5" />
+                        <span className="text-xs text-muted-foreground truncate">
+                          {issue.matched_snippet}
+                        </span>
+                      </div>
+                    )}
+                  </div>
                 </CommandItem>
               ))}
             </CommandGroup>
