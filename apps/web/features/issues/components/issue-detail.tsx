@@ -878,6 +878,23 @@ export function IssueDetail({ issueId, onDelete, defaultSidebarOpen = true, layo
             );
           })()}
 
+          {/* Add sub-issues button — shown when no sub-issues exist */}
+          {childIssues.length === 0 && (
+            <button
+              type="button"
+              className="mt-6 inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+              onClick={() =>
+                useModalStore.getState().open("create-issue", {
+                  parent_issue_id: issue.id,
+                  parent_issue_identifier: issue.identifier,
+                })
+              }
+            >
+              <Plus className="h-3.5 w-3.5" />
+              <span>Add sub-issues</span>
+            </button>
+          )}
+
           <div className="my-8 border-t" />
 
           {/* Activity / Comments */}
