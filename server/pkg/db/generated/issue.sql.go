@@ -189,6 +189,33 @@ func (q *Queries) GetIssueInWorkspace(ctx context.Context, arg GetIssueInWorkspa
 	return i, err
 }
 
+const countIssues = `-- name: CountIssues :one
+SELECT count(*) FROM issue
+WHERE workspace_id = $1
+  AND ($2::text IS NULL OR status = $2)
+  AND ($3::text IS NULL OR priority = $3)
+  AND ($4::uuid IS NULL OR assignee_id = $4)
+`
+
+type CountIssuesParams struct {
+	WorkspaceID pgtype.UUID `json:"workspace_id"`
+	Status      pgtype.Text `json:"status"`
+	Priority    pgtype.Text `json:"priority"`
+	AssigneeID  pgtype.UUID `json:"assignee_id"`
+}
+
+func (q *Queries) CountIssues(ctx context.Context, arg CountIssuesParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countIssues,
+		arg.WorkspaceID,
+		arg.Status,
+		arg.Priority,
+		arg.AssigneeID,
+	)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const listIssues = `-- name: ListIssues :many
 SELECT id, workspace_id, title, description, status, priority, assignee_type, assignee_id, creator_type, creator_id, parent_issue_id, acceptance_criteria, context_refs, position, due_date, created_at, updated_at, number FROM issue
 WHERE workspace_id = $1

@@ -124,6 +124,17 @@ func (h *Handler) ListIssues(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	total, err := h.Queries.CountIssues(ctx, db.CountIssuesParams{
+		WorkspaceID: parseUUID(workspaceID),
+		Status:      statusFilter,
+		Priority:    priorityFilter,
+		AssigneeID:  assigneeFilter,
+	})
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to count issues")
+		return
+	}
+
 	prefix := h.getIssuePrefix(ctx, parseUUID(workspaceID))
 	resp := make([]IssueResponse, len(issues))
 	for i, issue := range issues {
@@ -132,7 +143,7 @@ func (h *Handler) ListIssues(w http.ResponseWriter, r *http.Request) {
 
 	writeJSON(w, http.StatusOK, map[string]any{
 		"issues": resp,
-		"total":  len(resp),
+		"total":  total,
 	})
 }
 
