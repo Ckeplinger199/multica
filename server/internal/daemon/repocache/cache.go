@@ -167,7 +167,9 @@ type WorktreeResult struct {
 }
 
 // CreateWorktree looks up the bare cache for a repo, fetches latest, and creates
-// a git worktree in the agent's working directory.
+// a git worktree in the agent's working directory. If a worktree already exists
+// at the target path (reused environment), it updates the existing worktree to
+// the latest remote default branch instead of failing.
 func (c *Cache) CreateWorktree(params WorktreeParams) (*WorktreeResult, error) {
 	barePath := c.Lookup(params.WorkspaceID, params.RepoURL)
 	if barePath == "" {
@@ -189,7 +191,31 @@ func (c *Cache) CreateWorktree(params WorktreeParams) (*WorktreeResult, error) {
 	dirName := repoNameFromURL(params.RepoURL)
 	worktreePath := filepath.Join(params.WorkDir, dirName)
 
-	// Create the worktree.
+	// If worktree already exists (reused environment from a prior task),
+	// update it to the latest remote code instead of creating a new one.
+	if isGitWorktree(worktreePath) {
+		if err := updateExistingWorktree(worktreePath, branchName, baseRef); err != nil {
+			return nil, fmt.Errorf("update existing worktree: %w", err)
+		}
+
+		for _, pattern := range []string{".agent_context", "CLAUDE.md", "AGENTS.md", ".claude", ".config/opencode"} {
+			_ = excludeFromGit(worktreePath, pattern)
+		}
+
+		c.logger.Info("repo checkout: existing worktree updated",
+			"url", params.RepoURL,
+			"path", worktreePath,
+			"branch", branchName,
+			"base", baseRef,
+		)
+
+		return &WorktreeResult{
+			Path:       worktreePath,
+			BranchName: branchName,
+		}, nil
+	}
+
+	// Create a new worktree.
 	if err := createWorktree(barePath, worktreePath, branchName, baseRef); err != nil {
 		return nil, fmt.Errorf("create worktree: %w", err)
 	}
@@ -227,6 +253,53 @@ func runWorktreeAdd(gitRoot, worktreePath, branchName, baseRef string) error {
 	cmd := exec.Command("git", "-C", gitRoot, "worktree", "add", "-b", branchName, worktreePath, baseRef)
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("git worktree add: %s: %w", strings.TrimSpace(string(out)), err)
+	}
+	return nil
+}
+
+// isGitWorktree checks if a path is an existing git worktree.
+// Worktrees have a .git *file* (not directory) that points to the main repo.
+func isGitWorktree(path string) bool {
+	info, err := os.Stat(filepath.Join(path, ".git"))
+	return err == nil && !info.IsDir()
+}
+
+// updateExistingWorktree fetches the latest remote refs and checks out a new
+// branch from the remote default branch. This brings the worktree up to date
+// with the remote without losing the previous task's branch.
+func updateExistingWorktree(worktreePath, branchName, remoteDefault string) error {
+	// Fetch latest remote refs into the worktree.
+	fetchCmd := exec.Command("git", "-C", worktreePath, "fetch", "origin")
+	if out, err := fetchCmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("git fetch origin: %s: %w", strings.TrimSpace(string(out)), err)
+	}
+
+	// Discard any leftover uncommitted changes from the previous task.
+	resetCmd := exec.Command("git", "-C", worktreePath, "reset", "--hard")
+	if out, err := resetCmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("git reset --hard: %s: %w", strings.TrimSpace(string(out)), err)
+	}
+
+	// Clean untracked files (e.g. build artifacts from previous task).
+	cleanCmd := exec.Command("git", "-C", worktreePath, "clean", "-fd")
+	if out, err := cleanCmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("git clean -fd: %s: %w", strings.TrimSpace(string(out)), err)
+	}
+
+	// Create a new branch from the latest remote default branch and switch to it.
+	ref := "origin/" + remoteDefault
+	checkoutCmd := exec.Command("git", "-C", worktreePath, "checkout", "-b", branchName, ref)
+	if out, err := checkoutCmd.CombinedOutput(); err != nil {
+		// Branch name collision: append timestamp and retry once.
+		if strings.Contains(string(out), "already exists") {
+			branchName = fmt.Sprintf("%s-%d", branchName, time.Now().Unix())
+			checkoutCmd = exec.Command("git", "-C", worktreePath, "checkout", "-b", branchName, ref)
+			if out2, err2 := checkoutCmd.CombinedOutput(); err2 != nil {
+				return fmt.Errorf("git checkout -b (retry): %s: %w", strings.TrimSpace(string(out2)), err2)
+			}
+			return nil
+		}
+		return fmt.Errorf("git checkout -b: %s: %w", strings.TrimSpace(string(out)), err)
 	}
 	return nil
 }
