@@ -13,12 +13,16 @@ import {
   Clock,
   Copy,
   Check,
+  Monitor,
+  Cloud,
+  Cpu,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ActorAvatar } from "@/components/common/actor-avatar";
-import type { AgentTask } from "@/shared/types/agent";
+import { api } from "@/shared/api";
+import type { AgentTask, Agent, AgentRuntime } from "@/shared/types/agent";
 import { redactSecrets } from "../utils/redact";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -162,8 +166,32 @@ export function AgentTranscriptDialog({
   const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
   const [elapsed, setElapsed] = useState("");
   const [copied, setCopied] = useState(false);
+  const [agentInfo, setAgentInfo] = useState<Agent | null>(null);
+  const [runtimeInfo, setRuntimeInfo] = useState<AgentRuntime | null>(null);
   const eventRefs = useRef<Map<number, HTMLDivElement>>(new Map());
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  // Fetch agent and runtime metadata when dialog opens
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+
+    if (task.agent_id) {
+      api.getAgent(task.agent_id).then((agent) => {
+        if (!cancelled) setAgentInfo(agent);
+      }).catch(() => {});
+    }
+
+    if (task.runtime_id) {
+      api.listRuntimes().then((runtimes) => {
+        if (cancelled) return;
+        const rt = runtimes.find((r) => r.id === task.runtime_id);
+        if (rt) setRuntimeInfo(rt);
+      }).catch(() => {});
+    }
+
+    return () => { cancelled = true; };
+  }, [open, task.agent_id, task.runtime_id]);
 
   // Elapsed time for live tasks
   useEffect(() => {
@@ -240,47 +268,89 @@ export function AgentTranscriptDialog({
         <DialogTitle className="sr-only">Agent Execution Transcript</DialogTitle>
 
         {/* ── Header ─────────────────────────────────────────────── */}
-        <div className="flex items-center gap-3 border-b px-4 py-3 shrink-0">
-          <div className="flex items-center gap-2">
-            {task.agent_id ? (
-              <ActorAvatar actorType="agent" actorId={task.agent_id} size={24} />
-            ) : (
-              <div className="flex items-center justify-center h-6 w-6 rounded-full bg-info/10 text-info">
-                <Bot className="h-3.5 w-3.5" />
-              </div>
-            )}
-            <span className="font-medium text-sm">{agentName}</span>
+        <div className="border-b px-4 py-3 shrink-0 space-y-2">
+          {/* Top row: agent name, status, actions */}
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              {task.agent_id ? (
+                <ActorAvatar actorType="agent" actorId={task.agent_id} size={24} />
+              ) : (
+                <div className="flex items-center justify-center h-6 w-6 rounded-full bg-info/10 text-info">
+                  <Bot className="h-3.5 w-3.5" />
+                </div>
+              )}
+              <span className="font-medium text-sm">{agentName}</span>
+            </div>
+
+            {statusBadge}
+
+            <div className="ml-auto flex items-center gap-1">
+              <button
+                onClick={handleCopyAll}
+                className="flex items-center gap-1 rounded px-2 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+              >
+                {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                {copied ? "Copied" : "Copy all"}
+              </button>
+              <button
+                onClick={() => onOpenChange(false)}
+                className="flex items-center justify-center rounded p-1 text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
           </div>
 
-          {statusBadge}
+          {/* Metadata chips row */}
+          <div className="flex items-center gap-2 flex-wrap text-xs">
+            {/* Runtime provider */}
+            {runtimeInfo?.provider && (
+              <MetadataChip icon={<Cpu className="h-3 w-3" />}>
+                {formatProvider(runtimeInfo.provider)}
+              </MetadataChip>
+            )}
 
-          <div className="flex items-center gap-3 text-xs text-muted-foreground ml-2">
+            {/* Runtime environment */}
+            {runtimeInfo && (
+              <MetadataChip
+                icon={runtimeInfo.runtime_mode === "cloud" ? <Cloud className="h-3 w-3" /> : <Monitor className="h-3 w-3" />}
+              >
+                {runtimeInfo.name}
+                <span className="text-muted-foreground/60 ml-0.5">({runtimeInfo.runtime_mode})</span>
+              </MetadataChip>
+            )}
+
+            {/* Agent type / description */}
+            {agentInfo?.description && (
+              <MetadataChip icon={<Bot className="h-3 w-3" />}>
+                {agentInfo.description.length > 40 ? agentInfo.description.slice(0, 40) + "..." : agentInfo.description}
+              </MetadataChip>
+            )}
+
+            {/* Duration */}
             {duration && (
-              <span className="flex items-center gap-1">
-                <Clock className="h-3 w-3" />
+              <MetadataChip icon={<Clock className="h-3 w-3" />}>
                 {duration}
-              </span>
+              </MetadataChip>
             )}
-            {toolCount > 0 && (
-              <span>{toolCount} tool calls</span>
-            )}
-            <span>{items.length} events</span>
-          </div>
 
-          <div className="ml-auto flex items-center gap-1">
-            <button
-              onClick={handleCopyAll}
-              className="flex items-center gap-1 rounded px-2 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-            >
-              {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
-              {copied ? "Copied" : "Copy all"}
-            </button>
-            <button
-              onClick={() => onOpenChange(false)}
-              className="flex items-center justify-center rounded p-1 text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-            >
-              <X className="h-4 w-4" />
-            </button>
+            {/* Event counts */}
+            {toolCount > 0 && (
+              <MetadataChip>{toolCount} tool calls</MetadataChip>
+            )}
+            <MetadataChip>{items.length} events</MetadataChip>
+
+            {/* Created time */}
+            {task.created_at && (
+              <MetadataChip>
+                {new Date(task.created_at).toLocaleString(undefined, {
+                  month: "short",
+                  day: "numeric",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
+              </MetadataChip>
+            )}
           </div>
         </div>
 
@@ -332,6 +402,28 @@ export function AgentTranscriptDialog({
       </DialogContent>
     </Dialog>
   );
+}
+
+// ─── Timeline bar (colored segments) ────────────────────────────────────────
+
+// ─── Metadata chip ──────────────────────────────────────────────────────────
+
+function MetadataChip({ icon, children }: { icon?: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <span className="inline-flex items-center gap-1 rounded-md border bg-muted/50 px-2 py-0.5 text-[11px] text-muted-foreground">
+      {icon}
+      {children}
+    </span>
+  );
+}
+
+function formatProvider(provider: string): string {
+  const map: Record<string, string> = {
+    claude: "Claude Code",
+    "claude-code": "Claude Code",
+    codex: "Codex",
+  };
+  return map[provider.toLowerCase()] ?? provider;
 }
 
 // ─── Timeline bar (colored segments) ────────────────────────────────────────
