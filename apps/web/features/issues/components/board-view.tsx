@@ -16,28 +16,6 @@ import {
 } from "@dnd-kit/core";
 import { arrayMove } from "@dnd-kit/sortable";
 import { Eye, Loader2, MoreHorizontal } from "lucide-react";
-
-/** Sentinel that triggers `onVisible` when scrolled into view. */
-function InfiniteScrollSentinel({ onVisible, loading }: { onVisible: () => void; loading: boolean }) {
-  const sentinelRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const node = sentinelRef.current;
-    if (!node) return;
-    const observer = new IntersectionObserver(
-      ([entry]) => { if (entry.isIntersecting) onVisible(); },
-      { rootMargin: "100px" },
-    );
-    observer.observe(node);
-    return () => observer.disconnect();
-  }, [onVisible]);
-
-  return (
-    <div ref={sentinelRef} className="flex items-center justify-center py-2">
-      {loading && <Loader2 className="size-3 animate-spin text-muted-foreground" />}
-    </div>
-  );
-}
 import type { Issue, IssueStatus } from "@/shared/types";
 import { Button } from "@/components/ui/button";
 import { useLoadMoreDoneIssues } from "@core/issues/mutations";
@@ -54,6 +32,30 @@ import { sortIssues } from "@/features/issues/utils/sort";
 import { StatusIcon } from "./status-icon";
 import { BoardColumn } from "./board-column";
 import { BoardCardContent } from "./board-card";
+
+/** Sentinel that triggers `onVisible` when scrolled into view. */
+function InfiniteScrollSentinel({ onVisible, loading }: { onVisible: () => void; loading: boolean }) {
+  const sentinelRef = useRef<HTMLDivElement>(null);
+  const onVisibleRef = useRef(onVisible);
+  onVisibleRef.current = onVisible;
+
+  useEffect(() => {
+    const node = sentinelRef.current;
+    if (!node) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => { if (entry.isIntersecting) onVisibleRef.current(); },
+      { rootMargin: "100px" },
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
+
+  return (
+    <div ref={sentinelRef} className="flex items-center justify-center py-2">
+      {loading && <Loader2 className="size-3 animate-spin text-muted-foreground" />}
+    </div>
+  );
+}
 
 const COLUMN_IDS = new Set<string>(ALL_STATUSES);
 
