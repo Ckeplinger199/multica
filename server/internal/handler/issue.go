@@ -62,6 +62,70 @@ func issueToResponse(i db.Issue, issuePrefix string) IssueResponse {
 	}
 }
 
+func (h *Handler) SearchIssues(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	workspaceID := resolveWorkspaceID(r)
+
+	q := r.URL.Query().Get("q")
+	if q == "" {
+		writeError(w, http.StatusBadRequest, "q parameter is required")
+		return
+	}
+
+	limit := 20
+	offset := 0
+	if l := r.URL.Query().Get("limit"); l != "" {
+		if v, err := strconv.Atoi(l); err == nil && v > 0 {
+			limit = v
+		}
+	}
+	if limit > 50 {
+		limit = 50
+	}
+	if o := r.URL.Query().Get("offset"); o != "" {
+		if v, err := strconv.Atoi(o); err == nil && v >= 0 {
+			offset = v
+		}
+	}
+
+	wsUUID := parseUUID(workspaceID)
+	queryText := strToText(q)
+
+	issues, err := h.Queries.SearchIssues(ctx, db.SearchIssuesParams{
+		WorkspaceID:  wsUUID,
+		Query:        queryText,
+		SearchLimit:  int32(limit),
+		SearchOffset: int32(offset),
+	})
+	if err != nil {
+		slog.Warn("search issues failed", "error", err, "workspace_id", workspaceID, "query", q)
+		writeError(w, http.StatusInternalServerError, "failed to search issues")
+		return
+	}
+
+	total, err := h.Queries.SearchIssuesCount(ctx, db.SearchIssuesCountParams{
+		WorkspaceID: wsUUID,
+		Query:       queryText,
+	})
+	if err != nil {
+		slog.Warn("search issues count failed", "error", err, "workspace_id", workspaceID, "query", q)
+		writeError(w, http.StatusInternalServerError, "failed to search issues")
+		return
+	}
+
+	prefix := h.getIssuePrefix(ctx, wsUUID)
+	resp := make([]IssueResponse, len(issues))
+	for i, issue := range issues {
+		resp[i] = issueToResponse(issue, prefix)
+	}
+
+	w.Header().Set("X-Total-Count", strconv.FormatInt(total, 10))
+	writeJSON(w, http.StatusOK, map[string]any{
+		"issues": resp,
+		"total":  total,
+	})
+}
+
 func (h *Handler) ListIssues(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 

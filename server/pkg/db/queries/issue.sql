@@ -72,3 +72,23 @@ WHERE workspace_id = $1
 SELECT * FROM issue
 WHERE parent_issue_id = $1
 ORDER BY position ASC, created_at DESC;
+
+-- name: SearchIssues :many
+SELECT * FROM issue
+WHERE workspace_id = @workspace_id
+  AND (
+    title LIKE '%' || @query || '%'
+    OR COALESCE(description, '') LIKE '%' || @query || '%'
+  )
+ORDER BY
+  CASE WHEN title LIKE '%' || @query || '%' THEN 0 ELSE 1 END,
+  updated_at DESC
+LIMIT @search_limit OFFSET @search_offset;
+
+-- name: SearchIssuesCount :one
+SELECT COUNT(*) FROM issue
+WHERE workspace_id = @workspace_id
+  AND (
+    title LIKE '%' || @query || '%'
+    OR COALESCE(description, '') LIKE '%' || @query || '%'
+  );

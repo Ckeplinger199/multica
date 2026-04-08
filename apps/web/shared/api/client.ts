@@ -176,6 +176,13 @@ export class ApiClient {
     return this.fetch(`/api/issues?${search}`);
   }
 
+  async searchIssues(params: { q: string; limit?: number; offset?: number }): Promise<ListIssuesResponse> {
+    const search = new URLSearchParams({ q: params.q });
+    if (params.limit) search.set("limit", String(params.limit));
+    if (params.offset) search.set("offset", String(params.offset));
+    return this.fetch(`/api/issues/search?${search}`);
+  }
+
   async getIssue(id: string): Promise<Issue> {
     return this.fetch(`/api/issues/${id}`);
   }
