@@ -179,10 +179,10 @@ export function AppSidebar() {
               </DropdownMenu>
             </SidebarMenuItem>
           </SidebarMenu>
-          <div className="flex items-center gap-1.5 px-2">
+          <div className="flex items-center gap-1.5">
             <button
               type="button"
-              className="flex h-8 flex-1 items-center gap-2 rounded-md border bg-background px-2.5 text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+              className="flex h-8 flex-1 items-center gap-2 rounded-md border bg-background px-2 text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
               onClick={() => useSearchStore.getState().setOpen(true)}
             >
               <Search className="size-3.5 shrink-0" />
