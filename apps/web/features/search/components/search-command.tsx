@@ -4,17 +4,17 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, MessageSquare, SearchIcon } from "lucide-react";
 import { Command as CommandPrimitive } from "cmdk";
-import type { SearchIssueResult } from "@/shared/types";
-import { api } from "@/shared/api";
-import { StatusIcon } from "@/features/issues";
-import { STATUS_CONFIG } from "@/features/issues/config";
+import type { SearchIssueResult } from "@multica/core/types";
+import { api } from "@/platform/api";
+import { StatusIcon } from "@multica/views/issues/components";
+import { STATUS_CONFIG } from "@multica/core/issues/config";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogDescription,
-} from "@/components/ui/dialog";
+} from "@multica/ui/components/ui/dialog";
 
 export function SearchCommand() {
   const router = useRouter();
@@ -35,6 +35,14 @@ export function SearchCommand() {
     };
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
+  // Cleanup debounce/abort on unmount
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      if (abortRef.current) abortRef.current.abort();
+    };
   }, []);
 
   // Reset state when dialog closes
@@ -97,16 +105,16 @@ export function SearchCommand() {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogHeader className="sr-only">
-        <DialogTitle>Search Issues</DialogTitle>
-        <DialogDescription>
-          Search issues by title, description, or comments
-        </DialogDescription>
-      </DialogHeader>
       <DialogContent
         className="top-[20%] translate-y-0 overflow-hidden rounded-xl! p-0 sm:max-w-xl!"
         showCloseButton={false}
       >
+        <DialogHeader className="sr-only">
+          <DialogTitle>Search Issues</DialogTitle>
+          <DialogDescription>
+            Search issues by title, description, or comments
+          </DialogDescription>
+        </DialogHeader>
         <CommandPrimitive
           shouldFilter={false}
           className="flex size-full flex-col overflow-hidden rounded-xl bg-popover text-popover-foreground"
