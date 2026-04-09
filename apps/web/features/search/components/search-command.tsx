@@ -2,20 +2,19 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, MessageSquare } from "lucide-react";
+import { Loader2, MessageSquare, SearchIcon } from "lucide-react";
+import { Command as CommandPrimitive } from "cmdk";
 import type { SearchIssueResult } from "@/shared/types";
 import { api } from "@/shared/api";
 import { StatusIcon } from "@/features/issues";
 import { STATUS_CONFIG } from "@/features/issues/config";
 import {
-  CommandDialog,
-  Command,
-  CommandInput,
-  CommandList,
-  CommandEmpty,
-  CommandGroup,
-  CommandItem,
-} from "@/components/ui/command";
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 
 export function SearchCommand() {
   const router = useRouter();
@@ -62,7 +61,12 @@ export function SearchCommand() {
       const controller = new AbortController();
       abortRef.current = controller;
       try {
-        const res = await api.searchIssues({ q: q.trim(), limit: 20, include_closed: true, signal: controller.signal });
+        const res = await api.searchIssues({
+          q: q.trim(),
+          limit: 20,
+          include_closed: true,
+          signal: controller.signal,
+        });
         if (!controller.signal.aborted) {
           setResults(res.issues);
           setIsLoading(false);
@@ -92,39 +96,63 @@ export function SearchCommand() {
   );
 
   return (
-    <CommandDialog
-      open={open}
-      onOpenChange={setOpen}
-      title="Search Issues"
-      description="Search issues by title or description"
-    >
-      <Command shouldFilter={false}>
-        <CommandInput
-          placeholder="Search issues..."
-          value={query}
-          onValueChange={handleValueChange}
-        />
-        <CommandList>
-          {isLoading && (
-            <div className="flex items-center justify-center py-6">
-              <Loader2 className="size-4 animate-spin text-muted-foreground" />
-            </div>
-          )}
-          {!isLoading && query.trim() && results.length === 0 && (
-            <CommandEmpty>No issues found.</CommandEmpty>
-          )}
-          {!isLoading && results.length > 0 && (
-            <CommandGroup heading="Issues">
-              {results.map((issue) => (
-                <CommandItem
-                  key={issue.id}
-                  value={issue.id}
-                  onSelect={handleSelect}
-                  className="gap-3"
-                >
-                  <div className="flex flex-col gap-0.5 min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <StatusIcon status={issue.status} className="size-4 shrink-0" />
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogHeader className="sr-only">
+        <DialogTitle>Search Issues</DialogTitle>
+        <DialogDescription>
+          Search issues by title, description, or comments
+        </DialogDescription>
+      </DialogHeader>
+      <DialogContent
+        className="top-[20%] translate-y-0 overflow-hidden rounded-xl! p-0 sm:max-w-xl!"
+        showCloseButton={false}
+      >
+        <CommandPrimitive
+          shouldFilter={false}
+          className="flex size-full flex-col overflow-hidden rounded-xl bg-popover text-popover-foreground"
+        >
+          {/* Search input */}
+          <div className="flex items-center gap-3 border-b px-4 py-3">
+            <SearchIcon className="size-5 shrink-0 text-muted-foreground" />
+            <CommandPrimitive.Input
+              placeholder="Type a command or search..."
+              value={query}
+              onValueChange={handleValueChange}
+              className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+            />
+            <kbd className="hidden shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground sm:inline">
+              ESC
+            </kbd>
+          </div>
+
+          {/* Results list */}
+          <CommandPrimitive.List className="max-h-[min(400px,50vh)] overflow-y-auto overflow-x-hidden">
+            {isLoading && (
+              <div className="flex items-center justify-center py-10">
+                <Loader2 className="size-5 animate-spin text-muted-foreground" />
+              </div>
+            )}
+
+            {!isLoading && query.trim() && results.length === 0 && (
+              <CommandPrimitive.Empty className="py-10 text-center text-sm text-muted-foreground">
+                No issues found.
+              </CommandPrimitive.Empty>
+            )}
+
+            {!isLoading && results.length > 0 && (
+              <CommandPrimitive.Group className="p-2">
+                {results.map((issue) => (
+                  <CommandPrimitive.Item
+                    key={issue.id}
+                    value={issue.id}
+                    onSelect={handleSelect}
+                    className="flex cursor-default select-none flex-col gap-1 rounded-lg px-3 py-2.5 text-sm outline-none data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50 data-selected:bg-accent"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <StatusIcon
+                        status={issue.status}
+                        className="size-4 shrink-0"
+                      />
                       <span className="text-xs text-muted-foreground shrink-0">
                         {issue.identifier}
                       </span>
@@ -135,26 +163,28 @@ export function SearchCommand() {
                         {STATUS_CONFIG[issue.status].label}
                       </span>
                     </div>
-                    {issue.match_source === "comment" && issue.matched_snippet && (
-                      <div className="flex items-start gap-1.5 pl-6">
-                        <MessageSquare className="size-3 shrink-0 text-muted-foreground mt-0.5" />
-                        <span className="text-xs text-muted-foreground truncate">
-                          {issue.matched_snippet}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                </CommandItem>
-              ))}
-            </CommandGroup>
-          )}
-          {!isLoading && !query.trim() && (
-            <div className="py-6 text-center text-sm text-muted-foreground">
-              Type to search issues...
-            </div>
-          )}
-        </CommandList>
-      </Command>
-    </CommandDialog>
+                    {issue.match_source === "comment" &&
+                      issue.matched_snippet && (
+                        <div className="flex items-start gap-2 pl-[26px]">
+                          <MessageSquare className="size-3 shrink-0 text-muted-foreground mt-0.5" />
+                          <span className="text-xs text-muted-foreground truncate">
+                            {issue.matched_snippet}
+                          </span>
+                        </div>
+                      )}
+                  </CommandPrimitive.Item>
+                ))}
+              </CommandPrimitive.Group>
+            )}
+
+            {!isLoading && !query.trim() && (
+              <div className="py-10 text-center text-sm text-muted-foreground">
+                Type to search issues...
+              </div>
+            )}
+          </CommandPrimitive.List>
+        </CommandPrimitive>
+      </DialogContent>
+    </Dialog>
   );
 }
