@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo } from "react";
-import { ChevronRight, Plus } from "lucide-react";
+import { useMemo, useEffect, useRef } from "react";
+import { ChevronRight, Loader2, Plus } from "lucide-react";
 import { Accordion } from "@base-ui/react/accordion";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { Button } from "@/components/ui/button";
@@ -10,9 +10,34 @@ import { STATUS_CONFIG } from "@/features/issues/config";
 import { useModalStore } from "@/features/modals";
 import { useViewStore } from "@/features/issues/stores/view-store-context";
 import { useIssueSelectionStore } from "@/features/issues/stores/selection-store";
+import { useLoadMoreDoneIssues } from "@core/issues/mutations";
 import { sortIssues } from "@/features/issues/utils/sort";
 import { StatusIcon } from "./status-icon";
 import { ListRow } from "./list-row";
+
+/** Sentinel that triggers `onVisible` when scrolled into view. */
+function InfiniteScrollSentinel({ onVisible, loading }: { onVisible: () => void; loading: boolean }) {
+  const sentinelRef = useRef<HTMLDivElement>(null);
+  const onVisibleRef = useRef(onVisible);
+  onVisibleRef.current = onVisible;
+
+  useEffect(() => {
+    const node = sentinelRef.current;
+    if (!node) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => { if (entry?.isIntersecting) onVisibleRef.current(); },
+      { rootMargin: "100px" },
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
+
+  return (
+    <div ref={sentinelRef} className="flex items-center justify-center py-2">
+      {loading && <Loader2 className="size-3 animate-spin text-muted-foreground" />}
+    </div>
+  );
+}
 
 export function ListView({
   issues,
@@ -32,6 +57,7 @@ export function ListView({
   const selectedIds = useIssueSelectionStore((s) => s.selectedIds);
   const select = useIssueSelectionStore((s) => s.select);
   const deselect = useIssueSelectionStore((s) => s.deselect);
+  const { loadMore, hasMore, isLoading: loadingMore, doneTotal } = useLoadMoreDoneIssues();
 
   const issuesByStatus = useMemo(() => {
     const map = new Map<IssueStatus, Issue[]>();
@@ -101,7 +127,7 @@ export function ListView({
                     {cfg.label}
                   </span>
                   <span className="text-xs text-muted-foreground">
-                    {statusIssues.length}
+                    {status === "done" ? doneTotal : statusIssues.length}
                   </span>
                 </Accordion.Trigger>
                 <div className="pr-2">
@@ -128,9 +154,14 @@ export function ListView({
               </Accordion.Header>
               <Accordion.Panel className="pt-1">
                 {statusIssues.length > 0 ? (
-                  statusIssues.map((issue) => (
-                    <ListRow key={issue.id} issue={issue} />
-                  ))
+                  <>
+                    {statusIssues.map((issue) => (
+                      <ListRow key={issue.id} issue={issue} />
+                    ))}
+                    {status === "done" && hasMore && (
+                      <InfiniteScrollSentinel onVisible={loadMore} loading={loadingMore} />
+                    )}
+                  </>
                 ) : (
                   <p className="py-6 text-center text-xs text-muted-foreground">
                     No issues
