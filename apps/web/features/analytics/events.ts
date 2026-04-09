@@ -1,5 +1,5 @@
 /**
- * Centralized event name constants for Mixpanel tracking.
+ * Centralized event name constants for PostHog tracking.
  * Using constants prevents typos and makes it easy to audit all tracked events.
  */
 export const AnalyticsEvents = {

@@ -5,6 +5,5 @@ export {
   identifyUser,
   resetUser,
   registerSuperProperties,
-  incrementUserProperty,
   isAnalyticsEnabled,
-} from "./mixpanel";
+} from "./posthog";

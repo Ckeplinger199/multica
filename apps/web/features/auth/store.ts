@@ -3,7 +3,7 @@
 import { create } from "zustand";
 import type { User } from "@/shared/types";
 import { api } from "@/shared/api";
-import { track, identifyUser, resetUser, incrementUserProperty, AnalyticsEvents } from "@/features/analytics";
+import { track, identifyUser, resetUser, AnalyticsEvents } from "@/features/analytics";
 import { setLoggedInCookie, clearLoggedInCookie } from "./auth-cookie";
 
 interface AuthState {
@@ -52,8 +52,8 @@ export const useAuthStore = create<AuthState>((set) => ({
     api.setToken(token);
     setLoggedInCookie();
     identifyUser(user.id, {
-      $name: user.name,
-      $email: user.email,
+      name: user.name,
+      email: user.email,
       created_at: user.created_at,
     });
     track(AnalyticsEvents.LOGIN_OTP_VERIFIED, {

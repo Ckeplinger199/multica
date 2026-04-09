@@ -1,32 +1,34 @@
 "use client";
 
-import mixpanel from "mixpanel-browser";
+import posthog from "posthog-js";
 import { createLogger } from "@/shared/logger";
 
 const logger = createLogger("analytics");
 
-const MIXPANEL_TOKEN = process.env.NEXT_PUBLIC_MIXPANEL_TOKEN;
+const POSTHOG_KEY = process.env.NEXT_PUBLIC_POSTHOG_KEY;
+const POSTHOG_HOST = process.env.NEXT_PUBLIC_POSTHOG_HOST || "https://us.i.posthog.com";
 
-/** Whether Mixpanel is enabled (token is configured). */
-export const isAnalyticsEnabled = Boolean(MIXPANEL_TOKEN);
+/** Whether PostHog is enabled (API key is configured). */
+export const isAnalyticsEnabled = Boolean(POSTHOG_KEY);
 
 let initialized = false;
 
 /**
- * Initialize Mixpanel. Safe to call multiple times — subsequent calls are no-ops.
- * If NEXT_PUBLIC_MIXPANEL_TOKEN is not set, all analytics calls become silent no-ops.
+ * Initialize PostHog. Safe to call multiple times — subsequent calls are no-ops.
+ * If NEXT_PUBLIC_POSTHOG_KEY is not set, all analytics calls become silent no-ops.
  */
 export function initAnalytics() {
   if (!isAnalyticsEnabled || initialized) return;
 
-  mixpanel.init(MIXPANEL_TOKEN!, {
-    track_pageview: false, // we track page views manually for more control
+  posthog.init(POSTHOG_KEY!, {
+    api_host: POSTHOG_HOST,
+    capture_pageview: false, // we track page views manually for more control
+    capture_pageleave: true,
     persistence: "localStorage",
-    ip: true,
   });
 
   initialized = true;
-  logger.info("mixpanel initialized");
+  logger.info("posthog initialized");
 }
 
 /**
@@ -34,12 +36,7 @@ export function initAnalytics() {
  */
 export function identifyUser(userId: string, properties?: Record<string, unknown>) {
   if (!isAnalyticsEnabled) return;
-
-  mixpanel.identify(userId);
-
-  if (properties) {
-    mixpanel.people.set(properties);
-  }
+  posthog.identify(userId, properties);
 }
 
 /**
@@ -47,7 +44,7 @@ export function identifyUser(userId: string, properties?: Record<string, unknown
  */
 export function resetUser() {
   if (!isAnalyticsEnabled) return;
-  mixpanel.reset();
+  posthog.reset();
 }
 
 /**
@@ -55,7 +52,7 @@ export function resetUser() {
  */
 export function registerSuperProperties(properties: Record<string, unknown>) {
   if (!isAnalyticsEnabled) return;
-  mixpanel.register(properties);
+  posthog.register(properties);
 }
 
 /**
@@ -63,13 +60,5 @@ export function registerSuperProperties(properties: Record<string, unknown>) {
  */
 export function track(event: string, properties?: Record<string, unknown>) {
   if (!isAnalyticsEnabled) return;
-  mixpanel.track(event, properties);
-}
-
-/**
- * Increment a numeric user profile property.
- */
-export function incrementUserProperty(property: string, value: number = 1) {
-  if (!isAnalyticsEnabled) return;
-  mixpanel.people.increment(property, value);
+  posthog.capture(event, properties);
 }

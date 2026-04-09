@@ -34,8 +34,8 @@ export function AuthInitializer({ children }: { children: ReactNode }) {
       .then(([user, wsList]) => {
         setLoggedInCookie();
         identifyUser(user.id, {
-          $name: user.name,
-          $email: user.email,
+          name: user.name,
+          email: user.email,
           created_at: user.created_at,
         });
         useAuthStore.setState({ user, isLoading: false });
