@@ -203,7 +203,7 @@ func (h *Handler) SearchIssues(w http.ResponseWriter, r *http.Request) {
 	includeClosed := r.URL.Query().Get("include_closed") == "true"
 
 	wsUUID := parseUUID(workspaceID)
-	queryText := strToText(escapeLike(q))
+	queryText := strToText(strings.ToLower(escapeLike(q)))
 
 	rows, err := h.Queries.SearchIssues(ctx, db.SearchIssuesParams{
 		WorkspaceID:   wsUUID,

@@ -81,19 +81,20 @@ WHERE parent_issue_id = $1
 ORDER BY position ASC, created_at DESC;
 
 -- name: SearchIssues :many
+-- @query is expected to be pre-lowercased by the caller.
 SELECT i.*,
   COUNT(*) OVER() AS total_count,
   CASE
-    WHEN i.title ILIKE '%' || @query || '%' THEN 'title'
-    WHEN COALESCE(i.description, '') ILIKE '%' || @query || '%' THEN 'description'
+    WHEN LOWER(i.title) LIKE '%' || @query || '%' THEN 'title'
+    WHEN LOWER(COALESCE(i.description, '')) LIKE '%' || @query || '%' THEN 'description'
     ELSE 'comment'
   END AS match_source,
   CASE
-    WHEN i.title ILIKE '%' || @query || '%' THEN ''
-    WHEN COALESCE(i.description, '') ILIKE '%' || @query || '%' THEN ''
+    WHEN LOWER(i.title) LIKE '%' || @query || '%' THEN ''
+    WHEN LOWER(COALESCE(i.description, '')) LIKE '%' || @query || '%' THEN ''
     ELSE COALESCE(
       (SELECT c.content FROM comment c
-       WHERE c.issue_id = i.id AND c.content ILIKE '%' || @query || '%'
+       WHERE c.issue_id = i.id AND LOWER(c.content) LIKE '%' || @query || '%'
        ORDER BY c.created_at DESC LIMIT 1),
       ''
     )
@@ -101,18 +102,18 @@ SELECT i.*,
 FROM issue i
 WHERE i.workspace_id = @workspace_id
   AND (
-    i.title ILIKE '%' || @query || '%'
-    OR COALESCE(i.description, '') ILIKE '%' || @query || '%'
+    LOWER(i.title) LIKE '%' || @query || '%'
+    OR LOWER(COALESCE(i.description, '')) LIKE '%' || @query || '%'
     OR EXISTS (
       SELECT 1 FROM comment c
-      WHERE c.issue_id = i.id AND c.content ILIKE '%' || @query || '%'
+      WHERE c.issue_id = i.id AND LOWER(c.content) LIKE '%' || @query || '%'
     )
   )
   AND (@include_closed::boolean OR i.status NOT IN ('done', 'cancelled'))
 ORDER BY
   CASE
-    WHEN i.title ILIKE '%' || @query || '%' THEN 0
-    WHEN COALESCE(i.description, '') ILIKE '%' || @query || '%' THEN 1
+    WHEN LOWER(i.title) LIKE '%' || @query || '%' THEN 0
+    WHEN LOWER(COALESCE(i.description, '')) LIKE '%' || @query || '%' THEN 1
     ELSE 2
   END,
   i.updated_at DESC
