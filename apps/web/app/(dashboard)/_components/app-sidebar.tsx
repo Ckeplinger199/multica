@@ -181,7 +181,9 @@ export function AppSidebar() {
             >
               <Search className="size-3.5 shrink-0" />
               <span>Search...</span>
-              <kbd className="ml-auto text-[10px] text-muted-foreground/60">⌘K</kbd>
+              <kbd className="pointer-events-none ml-auto inline-flex h-5 select-none items-center gap-0.5 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground">
+                <span className="text-xs">⌘</span>K
+              </kbd>
             </button>
             <Tooltip>
               <TooltipTrigger
