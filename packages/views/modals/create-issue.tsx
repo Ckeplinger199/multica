@@ -2,7 +2,7 @@
 
 import { useState, useRef } from "react";
 import { useNavigation } from "../navigation";
-import { CalendarDays, Check, ChevronRight, FolderKanban, Maximize2, Minimize2, UserMinus, X as XIcon } from "lucide-react";
+import { CalendarDays, Check, ChevronRight, FolderKanban, Maximize2, Minimize2, X as XIcon } from "lucide-react";
 import { cn } from "@multica/ui/lib/utils";
 import { toast } from "sonner";
 import type { IssueStatus, IssuePriority, IssueAssigneeType } from "@multica/core/types";
@@ -28,20 +28,17 @@ import { Tooltip, TooltipTrigger, TooltipContent } from "@multica/ui/components/
 import { Button } from "@multica/ui/components/ui/button";
 import { ContentEditor, type ContentEditorRef } from "../editor";
 import { TitleEditor } from "../editor";
-import { StatusIcon, PriorityIcon } from "../issues/components";
+import { StatusIcon, PriorityIcon, AssigneePicker } from "../issues/components";
 import { ALL_STATUSES, STATUS_CONFIG, PRIORITY_ORDER, PRIORITY_CONFIG } from "@multica/core/issues/config";
 import { useWorkspaceStore } from "@multica/core/workspace";
-import { useActorName } from "@multica/core/workspace/hooks";
 import { useQuery } from "@tanstack/react-query";
 import { useWorkspaceId } from "@multica/core/hooks";
-import { memberListOptions, agentListOptions } from "@multica/core/workspace/queries";
 import { projectListOptions } from "@multica/core/projects/queries";
 import { useIssueDraftStore } from "@multica/core/issues/stores/draft-store";
 import { useCreateIssue } from "@multica/core/issues/mutations";
 import { useFileUpload } from "@multica/core/hooks/use-file-upload";
 import { api } from "@multica/core/api";
 import { FileUploadButton } from "@multica/ui/components/common/file-upload-button";
-import { ActorAvatar } from "../common/actor-avatar";
 
 // ---------------------------------------------------------------------------
 // Pill trigger — shared rounded-full button style for toolbar
@@ -75,10 +72,7 @@ export function CreateIssueModal({ onClose, data }: { onClose: () => void; data?
   const router = useNavigation();
   const workspaceName = useWorkspaceStore((s) => s.workspace?.name);
   const wsId = useWorkspaceId();
-  const { data: members = [] } = useQuery(memberListOptions(wsId));
-  const { data: agents = [] } = useQuery(agentListOptions(wsId));
   const { data: projects = [] } = useQuery(projectListOptions(wsId));
-  const { getActorName } = useActorName();
 
   const draft = useIssueDraftStore((s) => s.draft);
   const setDraft = useIssueDraftStore((s) => s.setDraft);
@@ -97,10 +91,6 @@ export function CreateIssueModal({ onClose, data }: { onClose: () => void; data?
   );
   const [isExpanded, setIsExpanded] = useState(false);
 
-  // Assignee popover
-  const [assigneeOpen, setAssigneeOpen] = useState(false);
-  const [assigneeFilter, setAssigneeFilter] = useState("");
-
   // Due date popover
   const [dueDateOpen, setDueDateOpen] = useState(false);
 
@@ -114,15 +104,6 @@ export function CreateIssueModal({ onClose, data }: { onClose: () => void; data?
     }
     return result;
   };
-
-  const assigneeQuery = assigneeFilter.toLowerCase();
-  const filteredMembers = members.filter((m) => m.name.toLowerCase().includes(assigneeQuery));
-  const filteredAgents = agents.filter((a) => !a.archived_at && a.name.toLowerCase().includes(assigneeQuery));
-
-  const assigneeLabel =
-    assigneeType && assigneeId
-      ? getActorName(assigneeType, assigneeId)
-      : "Assignee";
 
   const dueDateObj = dueDate ? new Date(dueDate) : undefined;
 
@@ -312,94 +293,17 @@ export function CreateIssueModal({ onClose, data }: { onClose: () => void; data?
             </DropdownMenuContent>
           </DropdownMenu>
 
-          {/* Assignee — Popover for search support */}
-          <Popover open={assigneeOpen} onOpenChange={(v) => { setAssigneeOpen(v); if (!v) setAssigneeFilter(""); }}>
-            <PopoverTrigger
-              render={
-                <PillButton>
-                  {assigneeType && assigneeId ? (
-                    <>
-                      <ActorAvatar actorType={assigneeType} actorId={assigneeId} size={16} />
-                      <span>{assigneeLabel}</span>
-                    </>
-                  ) : (
-                    <span className="text-muted-foreground">Assignee</span>
-                  )}
-                </PillButton>
-              }
-            />
-            <PopoverContent align="start" className="w-52 p-0">
-              <div className="px-2 py-1.5 border-b">
-                <input
-                  type="text"
-                  value={assigneeFilter}
-                  onChange={(e) => setAssigneeFilter(e.target.value)}
-                  placeholder="Assign to..."
-                  className="w-full bg-transparent text-sm placeholder:text-muted-foreground outline-none"
-                />
-              </div>
-              <div className="p-1 max-h-60 overflow-y-auto">
-                {/* Unassigned */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    updateAssignee(undefined, undefined);
-                    setAssigneeOpen(false);
-                  }}
-                  className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-accent transition-colors"
-                >
-                  <UserMinus className="h-3.5 w-3.5 text-muted-foreground" />
-                  <span className="text-muted-foreground">Unassigned</span>
-                </button>
-
-                {/* Members */}
-                {filteredMembers.length > 0 && (
-                  <>
-                    <div className="px-2 pt-2 pb-1 text-xs font-medium text-muted-foreground uppercase tracking-wider">Members</div>
-                    {filteredMembers.map((m) => (
-                      <button
-                        type="button"
-                        key={m.user_id}
-                        onClick={() => {
-                          updateAssignee("member", m.user_id);
-                          setAssigneeOpen(false);
-                        }}
-                        className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-accent transition-colors"
-                      >
-                        <ActorAvatar actorType="member" actorId={m.user_id} size={16} />
-                        <span>{m.name}</span>
-                      </button>
-                    ))}
-                  </>
-                )}
-
-                {/* Agents */}
-                {filteredAgents.length > 0 && (
-                  <>
-                    <div className="px-2 pt-2 pb-1 text-xs font-medium text-muted-foreground uppercase tracking-wider">Agents</div>
-                    {filteredAgents.map((a) => (
-                      <button
-                        type="button"
-                        key={a.id}
-                        onClick={() => {
-                          updateAssignee("agent", a.id);
-                          setAssigneeOpen(false);
-                        }}
-                        className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-accent transition-colors"
-                      >
-                        <ActorAvatar actorType="agent" actorId={a.id} size={16} />
-                        <span>{a.name}</span>
-                      </button>
-                    ))}
-                  </>
-                )}
-
-                {filteredMembers.length === 0 && filteredAgents.length === 0 && assigneeFilter && (
-                  <div className="px-2 py-3 text-center text-sm text-muted-foreground">No results</div>
-                )}
-              </div>
-            </PopoverContent>
-          </Popover>
+          {/* Assignee */}
+          <AssigneePicker
+            assigneeType={assigneeType ?? null}
+            assigneeId={assigneeId ?? null}
+            onUpdate={(u) => updateAssignee(
+              u.assignee_type ?? undefined,
+              u.assignee_id ?? undefined,
+            )}
+            triggerRender={<PillButton />}
+            align="start"
+          />
 
           {/* Due date */}
           <Popover open={dueDateOpen} onOpenChange={setDueDateOpen}>
