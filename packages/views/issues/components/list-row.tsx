@@ -57,15 +57,17 @@ export const ListRow = memo(function ListRow({
         <span className="w-16 shrink-0 text-xs text-muted-foreground">
           {issue.identifier}
         </span>
-        <span className="min-w-0 flex-1 truncate">{issue.title}</span>
-        {childProgress && (
-          <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-muted/60 px-1.5 py-0.5">
-            <ProgressRing done={childProgress.done} total={childProgress.total} size={11} />
-            <span className="text-[11px] text-muted-foreground tabular-nums font-medium">
-              {childProgress.done}/{childProgress.total}
+        <span className="flex min-w-0 flex-1 items-center gap-1.5">
+          <span className="truncate">{issue.title}</span>
+          {childProgress && (
+            <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-muted/60 px-1.5 py-0.5">
+              <ProgressRing done={childProgress.done} total={childProgress.total} size={14} />
+              <span className="text-[11px] text-muted-foreground tabular-nums font-medium">
+                {childProgress.done}/{childProgress.total}
+              </span>
             </span>
-          </span>
-        )}
+          )}
+        </span>
         {issue.due_date && (
           <span className="shrink-0 text-xs text-muted-foreground">
             {formatDate(issue.due_date)}
