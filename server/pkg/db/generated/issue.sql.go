@@ -431,16 +431,16 @@ const searchIssues = `-- name: SearchIssues :many
 SELECT i.id, i.workspace_id, i.title, i.description, i.status, i.priority, i.assignee_type, i.assignee_id, i.creator_type, i.creator_id, i.parent_issue_id, i.acceptance_criteria, i.context_refs, i.position, i.due_date, i.created_at, i.updated_at, i.number, i.project_id,
   COUNT(*) OVER() AS total_count,
   CASE
-    WHEN i.title LIKE '%' || $1 || '%' THEN 'title'
-    WHEN COALESCE(i.description, '') LIKE '%' || $1 || '%' THEN 'description'
+    WHEN i.title ILIKE '%' || $1 || '%' THEN 'title'
+    WHEN COALESCE(i.description, '') ILIKE '%' || $1 || '%' THEN 'description'
     ELSE 'comment'
   END AS match_source,
   CASE
-    WHEN i.title LIKE '%' || $1 || '%' THEN ''
-    WHEN COALESCE(i.description, '') LIKE '%' || $1 || '%' THEN ''
+    WHEN i.title ILIKE '%' || $1 || '%' THEN ''
+    WHEN COALESCE(i.description, '') ILIKE '%' || $1 || '%' THEN ''
     ELSE COALESCE(
       (SELECT c.content FROM comment c
-       WHERE c.issue_id = i.id AND c.content LIKE '%' || $1 || '%'
+       WHERE c.issue_id = i.id AND c.content ILIKE '%' || $1 || '%'
        ORDER BY c.created_at DESC LIMIT 1),
       ''
     )
@@ -448,18 +448,18 @@ SELECT i.id, i.workspace_id, i.title, i.description, i.status, i.priority, i.ass
 FROM issue i
 WHERE i.workspace_id = $2
   AND (
-    i.title LIKE '%' || $1 || '%'
-    OR COALESCE(i.description, '') LIKE '%' || $1 || '%'
+    i.title ILIKE '%' || $1 || '%'
+    OR COALESCE(i.description, '') ILIKE '%' || $1 || '%'
     OR EXISTS (
       SELECT 1 FROM comment c
-      WHERE c.issue_id = i.id AND c.content LIKE '%' || $1 || '%'
+      WHERE c.issue_id = i.id AND c.content ILIKE '%' || $1 || '%'
     )
   )
   AND ($3::boolean OR i.status NOT IN ('done', 'cancelled'))
 ORDER BY
   CASE
-    WHEN i.title LIKE '%' || $1 || '%' THEN 0
-    WHEN COALESCE(i.description, '') LIKE '%' || $1 || '%' THEN 1
+    WHEN i.title ILIKE '%' || $1 || '%' THEN 0
+    WHEN COALESCE(i.description, '') ILIKE '%' || $1 || '%' THEN 1
     ELSE 2
   END,
   i.updated_at DESC

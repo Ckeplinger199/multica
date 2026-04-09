@@ -84,16 +84,16 @@ ORDER BY position ASC, created_at DESC;
 SELECT i.*,
   COUNT(*) OVER() AS total_count,
   CASE
-    WHEN i.title LIKE '%' || @query || '%' THEN 'title'
-    WHEN COALESCE(i.description, '') LIKE '%' || @query || '%' THEN 'description'
+    WHEN i.title ILIKE '%' || @query || '%' THEN 'title'
+    WHEN COALESCE(i.description, '') ILIKE '%' || @query || '%' THEN 'description'
     ELSE 'comment'
   END AS match_source,
   CASE
-    WHEN i.title LIKE '%' || @query || '%' THEN ''
-    WHEN COALESCE(i.description, '') LIKE '%' || @query || '%' THEN ''
+    WHEN i.title ILIKE '%' || @query || '%' THEN ''
+    WHEN COALESCE(i.description, '') ILIKE '%' || @query || '%' THEN ''
     ELSE COALESCE(
       (SELECT c.content FROM comment c
-       WHERE c.issue_id = i.id AND c.content LIKE '%' || @query || '%'
+       WHERE c.issue_id = i.id AND c.content ILIKE '%' || @query || '%'
        ORDER BY c.created_at DESC LIMIT 1),
       ''
     )
@@ -101,18 +101,18 @@ SELECT i.*,
 FROM issue i
 WHERE i.workspace_id = @workspace_id
   AND (
-    i.title LIKE '%' || @query || '%'
-    OR COALESCE(i.description, '') LIKE '%' || @query || '%'
+    i.title ILIKE '%' || @query || '%'
+    OR COALESCE(i.description, '') ILIKE '%' || @query || '%'
     OR EXISTS (
       SELECT 1 FROM comment c
-      WHERE c.issue_id = i.id AND c.content LIKE '%' || @query || '%'
+      WHERE c.issue_id = i.id AND c.content ILIKE '%' || @query || '%'
     )
   )
   AND (@include_closed::boolean OR i.status NOT IN ('done', 'cancelled'))
 ORDER BY
   CASE
-    WHEN i.title LIKE '%' || @query || '%' THEN 0
-    WHEN COALESCE(i.description, '') LIKE '%' || @query || '%' THEN 1
+    WHEN i.title ILIKE '%' || @query || '%' THEN 0
+    WHEN COALESCE(i.description, '') ILIKE '%' || @query || '%' THEN 1
     ELSE 2
   END,
   i.updated_at DESC
