@@ -1,4 +1,4 @@
-import { githubUrl } from "../components/shared";
+import { githubUrl, twitterUrl } from "../components/shared";
 import type { LandingDict } from "./types";
 
 export const zh: LandingDict = {
@@ -239,6 +239,7 @@ export const zh: LandingDict = {
           { label: "\u5173\u4e8e\u6211\u4eec", href: "/about" },
           { label: "\u5f00\u6e90", href: "#open-source" },
           { label: "GitHub", href: githubUrl },
+          { label: "X / Twitter", href: twitterUrl },
         ],
       },
     },

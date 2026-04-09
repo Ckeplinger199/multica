@@ -1,4 +1,4 @@
-import { githubUrl } from "../components/shared";
+import { githubUrl, twitterUrl } from "../components/shared";
 import type { LandingDict } from "./types";
 
 export const en: LandingDict = {
@@ -239,6 +239,7 @@ export const en: LandingDict = {
           { label: "About", href: "/about" },
           { label: "Open Source", href: "#open-source" },
           { label: "GitHub", href: githubUrl },
+          { label: "X / Twitter", href: twitterUrl },
         ],
       },
     },
