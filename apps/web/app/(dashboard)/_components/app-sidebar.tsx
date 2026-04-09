@@ -26,6 +26,7 @@ import {
   SidebarContent,
   SidebarGroup,
   SidebarGroupContent,
+  SidebarGroupLabel,
   SidebarHeader,
   SidebarFooter,
   SidebarMenu,
@@ -52,18 +53,17 @@ import { useModalStore } from "@multica/core/modals";
 import { useMyRuntimesNeedUpdate } from "@multica/core/runtimes/hooks";
 import { useSearchStore } from "@/features/search";
 
-const primaryNav = [
+const personalNav = [
   { href: "/inbox", label: "Inbox", icon: Inbox },
   { href: "/my-issues", label: "My Issues", icon: CircleUser },
-  { href: "/issues", label: "Issues", icon: ListTodo },
-  { href: "/projects", label: "Projects", icon: FolderKanban },
 ];
 
 const workspaceNav = [
+  { href: "/issues", label: "Issues", icon: ListTodo },
+  { href: "/projects", label: "Projects", icon: FolderKanban },
   { href: "/agents", label: "Agents", icon: Bot },
   { href: "/runtimes", label: "Runtimes", icon: Monitor },
   { href: "/skills", label: "Skills", icon: BookOpenText },
-  { href: "/settings", label: "Settings", icon: Settings },
 ];
 
 function DraftDot() {
@@ -103,21 +103,20 @@ export function AppSidebar() {
       <Sidebar variant="inset">
         {/* Workspace Switcher */}
         <SidebarHeader className="py-3">
-          <div className="flex items-center gap-4">
-            <SidebarMenu className="min-w-0 flex-1">
-              <SidebarMenuItem>
-                <DropdownMenu>
-                  <DropdownMenuTrigger
-                    render={
-                      <SidebarMenuButton>
-                        <WorkspaceAvatar name={workspace?.name ?? "M"} size="sm" />
-                        <span className="flex-1 truncate font-medium">
-                          {workspace?.name ?? "Multica"}
-                        </span>
-                        <ChevronDown className="size-3 text-muted-foreground" />
-                      </SidebarMenuButton>
-                    }
-                  />
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  render={
+                    <SidebarMenuButton>
+                      <WorkspaceAvatar name={workspace?.name ?? "M"} size="sm" />
+                      <span className="flex-1 truncate font-medium">
+                        {workspace?.name ?? "Multica"}
+                      </span>
+                      <ChevronDown className="size-3 text-muted-foreground" />
+                    </SidebarMenuButton>
+                  }
+                />
                 <DropdownMenuContent
                   className="w-52"
                   align="start"
@@ -171,30 +170,29 @@ export function AppSidebar() {
                     </DropdownMenuItem>
                   </DropdownMenuGroup>
                 </DropdownMenuContent>
-                </DropdownMenu>
-              </SidebarMenuItem>
-            </SidebarMenu>
-            <div className="flex items-center gap-1">
-              <Tooltip>
-                <TooltipTrigger
-                  className="flex h-7 w-7 items-center justify-center rounded-lg text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-                  onClick={() => useSearchStore.getState().setOpen(true)}
-                >
-                  <Search className="size-3.5" />
-                </TooltipTrigger>
-                <TooltipContent side="bottom">Search workspace (⌘K)</TooltipContent>
-              </Tooltip>
-              <Tooltip>
-                <TooltipTrigger
-                  className="relative flex h-7 w-7 items-center justify-center rounded-lg bg-background text-foreground shadow-sm hover:bg-accent"
-                  onClick={() => useModalStore.getState().open("create-issue")}
-                >
-                  <SquarePen className="size-3.5" />
-                  <DraftDot />
-                </TooltipTrigger>
-                <TooltipContent side="bottom">New issue</TooltipContent>
-              </Tooltip>
-            </div>
+              </DropdownMenu>
+            </SidebarMenuItem>
+          </SidebarMenu>
+          <div className="flex items-center gap-1.5 px-2">
+            <button
+              type="button"
+              className="flex h-8 flex-1 items-center gap-2 rounded-md border bg-background px-2.5 text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+              onClick={() => useSearchStore.getState().setOpen(true)}
+            >
+              <Search className="size-3.5 shrink-0" />
+              <span>Search...</span>
+              <kbd className="ml-auto text-[10px] text-muted-foreground/60">⌘K</kbd>
+            </button>
+            <Tooltip>
+              <TooltipTrigger
+                className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-md border bg-background text-foreground hover:bg-accent transition-colors"
+                onClick={() => useModalStore.getState().open("create-issue")}
+              >
+                <SquarePen className="size-3.5" />
+                <DraftDot />
+              </TooltipTrigger>
+              <TooltipContent side="bottom">New issue</TooltipContent>
+            </Tooltip>
           </div>
         </SidebarHeader>
 
@@ -203,7 +201,7 @@ export function AppSidebar() {
           <SidebarGroup>
             <SidebarGroupContent>
               <SidebarMenu className="gap-0.5">
-                {primaryNav.map((item) => {
+                {personalNav.map((item) => {
                   const isActive = pathname === item.href;
                   return (
                     <SidebarMenuItem key={item.href}>
@@ -228,6 +226,7 @@ export function AppSidebar() {
           </SidebarGroup>
 
           <SidebarGroup>
+            <SidebarGroupLabel>Workspace</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu className="gap-0.5">
                 {workspaceNav.map((item) => {
@@ -252,7 +251,21 @@ export function AppSidebar() {
             </SidebarGroupContent>
           </SidebarGroup>
         </SidebarContent>
-        <SidebarFooter />
+
+        <SidebarFooter className="p-2">
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                isActive={pathname === "/settings"}
+                render={<Link href="/settings" />}
+                className="text-muted-foreground hover:not-data-active:bg-sidebar-accent/70 data-active:bg-sidebar-accent data-active:text-sidebar-accent-foreground"
+              >
+                <Settings />
+                <span>Settings</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarFooter>
         <SidebarRail />
       </Sidebar>
   );
