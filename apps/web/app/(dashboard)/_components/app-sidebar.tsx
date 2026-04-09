@@ -18,8 +18,10 @@ import {
   CircleUser,
   FolderKanban,
   Search,
+  Ellipsis,
 } from "lucide-react";
 import { WorkspaceAvatar } from "@multica/views/workspace/workspace-avatar";
+import { ActorAvatar } from "@multica/ui/components/common/actor-avatar";
 import { useIssueDraftStore } from "@multica/core/issues/stores/draft-store";
 import {
   Sidebar,
@@ -267,6 +269,35 @@ export function AppSidebar() {
               </SidebarMenuButton>
             </SidebarMenuItem>
           </SidebarMenu>
+          <div className="border-t pt-2 mt-1">
+            <div className="flex items-center gap-2.5 rounded-md px-2 py-1.5">
+              <ActorAvatar
+                name={user?.name ?? ""}
+                initials={(user?.name ?? "U").charAt(0).toUpperCase()}
+                avatarUrl={user?.avatar_url}
+                size={28}
+              />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium leading-tight">
+                  {user?.name}
+                </p>
+                <p className="truncate text-xs text-muted-foreground leading-tight">
+                  {user?.email}
+                </p>
+              </div>
+              <DropdownMenu>
+                <DropdownMenuTrigger className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors">
+                  <Ellipsis className="size-4" />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" side="top" sideOffset={4}>
+                  <DropdownMenuItem variant="destructive" onClick={logout}>
+                    <LogOut className="h-3.5 w-3.5" />
+                    Log out
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          </div>
         </SidebarFooter>
         <SidebarRail />
       </Sidebar>
