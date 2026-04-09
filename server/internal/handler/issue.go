@@ -242,14 +242,14 @@ func buildSearchQuery(phrase string, terms []string, queryNum int, hasNum bool, 
 
 	wsParam := nextArg(nil) // $2 — workspace_id, will be filled by caller position
 
-	// Build per-term ILIKE conditions for multi-word search.
-	// Each term must match somewhere in title, description, or comments.
-	var escapedTerms []string
+	// Build per-term ILIKE conditions only for multi-word search.
+	// For single-word queries, the phrase parameter already covers the term.
 	var termParams []string
-	for _, t := range terms {
-		et := escapeLike(t)
-		escapedTerms = append(escapedTerms, et)
-		termParams = append(termParams, nextArg(et))
+	if len(terms) > 1 {
+		for _, t := range terms {
+			et := escapeLike(t)
+			termParams = append(termParams, nextArg(et))
+		}
 	}
 
 	// --- WHERE clause ---
