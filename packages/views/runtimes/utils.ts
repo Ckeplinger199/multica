@@ -16,11 +16,11 @@ export function formatLastSeen(lastSeenAt: string | null): string {
 export function formatTokens(n: number): string {
   if (n >= 1_000_000) {
     const m = n / 1_000_000;
-    return Number.isInteger(m) ? `${m}M` : `${m.toFixed(1)}M`;
+    return m % 1 < 0.05 ? `${Math.round(m)}M` : `${m.toFixed(1)}M`;
   }
   if (n >= 1_000) {
     const k = n / 1_000;
-    return Number.isInteger(k) ? `${k}K` : `${k.toFixed(1)}K`;
+    return k % 1 < 0.05 ? `${Math.round(k)}K` : `${k.toFixed(1)}K`;
   }
   return n.toLocaleString();
 }
