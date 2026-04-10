@@ -18,7 +18,8 @@ import { arrayMove } from "@dnd-kit/sortable";
 import { Eye, MoreHorizontal } from "lucide-react";
 import type { Issue, IssueStatus } from "@multica/core/types";
 import { Button } from "@multica/ui/components/ui/button";
-import { useLoadMoreDoneIssues } from "@multica/core/issues/mutations";
+import { useLoadMoreDoneIssues, useLoadMoreMyDoneIssues } from "@multica/core/issues/mutations";
+import type { MyIssuesFilter } from "@multica/core/issues/queries";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -104,6 +105,8 @@ export function BoardView({
   onMoveIssue,
   childProgressMap = EMPTY_PROGRESS_MAP,
   doneTotal: doneTotalOverride,
+  myIssuesScope,
+  myIssuesFilter,
 }: {
   issues: Issue[];
   allIssues: Issue[];
@@ -115,12 +118,18 @@ export function BoardView({
     newPosition?: number
   ) => void;
   childProgressMap?: Map<string, ChildProgress>;
-  /** Override the done-column count (e.g. with a client-filtered total). */
+  /** Override the done-column count (e.g. with a server-filtered total). */
   doneTotal?: number;
+  /** When set, use the My Issues load-more hook instead of the workspace one. */
+  myIssuesScope?: string;
+  myIssuesFilter?: MyIssuesFilter;
 }) {
   const sortBy = useViewStore((s) => s.sortBy);
   const sortDirection = useViewStore((s) => s.sortDirection);
-  const { loadMore, hasMore, isLoading: loadingMore, doneTotal: hookDoneTotal } = useLoadMoreDoneIssues();
+  const wsHook = useLoadMoreDoneIssues();
+  const myHook = useLoadMoreMyDoneIssues(myIssuesScope ?? "", myIssuesFilter ?? {});
+  const { loadMore, hasMore, isLoading: loadingMore, doneTotal: hookDoneTotal } =
+    myIssuesScope ? myHook : wsHook;
   const displayDoneTotal = doneTotalOverride ?? hookDoneTotal;
 
   // --- Drag state ---

@@ -1,7 +1,7 @@
 import { useState, useCallback } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api";
-import { issueKeys, CLOSED_PAGE_SIZE } from "./queries";
+import { issueKeys, CLOSED_PAGE_SIZE, type MyIssuesFilter } from "./queries";
 import { useWorkspaceId } from "../hooks";
 import type { Issue, IssueReaction } from "../types";
 import type {
@@ -66,6 +66,50 @@ export function useLoadMoreDoneIssues() {
       setIsLoading(false);
     }
   }, [qc, wsId, doneLoaded, hasMore, isLoading]);
+
+  return { loadMore, hasMore, isLoading, doneTotal };
+}
+
+/**
+ * Paginate done issues for a My Issues scope (server-filtered).
+ */
+export function useLoadMoreMyDoneIssues(scope: string, filter: MyIssuesFilter) {
+  const qc = useQueryClient();
+  const wsId = useWorkspaceId();
+  const [isLoading, setIsLoading] = useState(false);
+
+  const queryKey = issueKeys.myList(wsId, scope, filter);
+  const cache = qc.getQueryData<ListIssuesResponse>(queryKey);
+  const doneLoaded = cache
+    ? cache.issues.filter((i) => i.status === "done").length
+    : 0;
+  const doneTotal = cache?.doneTotal ?? 0;
+  const hasMore = doneLoaded < doneTotal;
+
+  const loadMore = useCallback(async () => {
+    if (isLoading || !hasMore) return;
+    setIsLoading(true);
+    try {
+      const res = await api.listIssues({
+        status: "done",
+        limit: CLOSED_PAGE_SIZE,
+        offset: doneLoaded,
+        ...filter,
+      });
+      qc.setQueryData<ListIssuesResponse>(queryKey, (old) => {
+        if (!old) return old;
+        const existingIds = new Set(old.issues.map((i) => i.id));
+        const newIssues = res.issues.filter((i) => !existingIds.has(i.id));
+        return {
+          ...old,
+          issues: [...old.issues, ...newIssues],
+          doneTotal: res.total,
+        };
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  }, [qc, queryKey, doneLoaded, hasMore, isLoading, filter]);
 
   return { loadMore, hasMore, isLoading, doneTotal };
 }
