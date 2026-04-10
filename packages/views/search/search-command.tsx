@@ -82,6 +82,7 @@ export function SearchCommand() {
     if (!open) return;
     const handleEsc = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
+        e.preventDefault();
         e.stopPropagation();
         setOpen(false);
       }
