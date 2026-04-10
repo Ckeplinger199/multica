@@ -14,8 +14,14 @@ export function formatLastSeen(lastSeenAt: string | null): string {
 }
 
 export function formatTokens(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
+  if (n >= 1_000_000) {
+    const m = n / 1_000_000;
+    return Number.isInteger(m) ? `${m}M` : `${m.toFixed(1)}M`;
+  }
+  if (n >= 1_000) {
+    const k = n / 1_000;
+    return Number.isInteger(k) ? `${k}K` : `${k.toFixed(1)}K`;
+  }
   return n.toLocaleString();
 }
 
@@ -66,8 +72,7 @@ export interface DailyTokenData {
   label: string;
   input: number;
   output: number;
-  cacheRead: number;
-  cacheWrite: number;
+  cached: number;
 }
 
 export interface DailyCostData {
@@ -96,13 +101,11 @@ export function aggregateByDate(usage: RuntimeUsage[]): {
       date: u.date,
       input: 0,
       output: 0,
-      cacheRead: 0,
-      cacheWrite: 0,
+      cached: 0,
     };
-    existing.input += u.input_tokens;
+    existing.input += u.input_tokens + u.cache_write_tokens;
     existing.output += u.output_tokens;
-    existing.cacheRead += u.cache_read_tokens;
-    existing.cacheWrite += u.cache_write_tokens;
+    existing.cached += u.cache_read_tokens;
     dateMap.set(u.date, existing);
 
     const dayCost = (costMap.get(u.date) ?? 0) + estimateCost(u);
