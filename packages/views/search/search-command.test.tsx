@@ -60,18 +60,10 @@ describe("SearchCommand", () => {
     expect(screen.queryByPlaceholderText("Type a command or search...")).not.toBeInTheDocument();
   });
 
-  it("shows all navigation pages when no query is entered", () => {
+  it("does not show pages when no query is entered", () => {
     render(<SearchCommand />);
 
-    expect(screen.getByText("Pages")).toBeInTheDocument();
-    expect(screen.getByText("Inbox")).toBeInTheDocument();
-    expect(screen.getByText("My Issues")).toBeInTheDocument();
-    expect(screen.getByText("Issues")).toBeInTheDocument();
-    expect(screen.getByText("Projects")).toBeInTheDocument();
-    expect(screen.getByText("Agents")).toBeInTheDocument();
-    expect(screen.getByText("Runtimes")).toBeInTheDocument();
-    expect(screen.getByText("Skills")).toBeInTheDocument();
-    expect(screen.getByText("Settings")).toBeInTheDocument();
+    expect(screen.queryByText("Pages")).not.toBeInTheDocument();
   });
 
   it("filters navigation pages by query", async () => {
@@ -93,7 +85,10 @@ describe("SearchCommand", () => {
     const user = userEvent.setup();
     render(<SearchCommand />);
 
-    const settingsItem = screen.getByText("Settings");
+    const input = screen.getByPlaceholderText("Type a command or search...");
+    await user.type(input, "settings");
+
+    const settingsItem = await screen.findByText("Settings");
     await user.click(settingsItem);
 
     expect(mockPush).toHaveBeenCalledWith("/settings");

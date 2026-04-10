@@ -99,7 +99,7 @@ export function SearchCommand() {
 
   const filteredPages = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return navPages;
+    if (!q) return [];
     return navPages.filter(
       (page) =>
         page.label.toLowerCase().includes(q) ||
