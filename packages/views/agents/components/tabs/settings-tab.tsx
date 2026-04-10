@@ -4,6 +4,7 @@ import { useState, useRef } from "react";
 import {
   Cloud,
   Monitor,
+  ChevronDown,
   Loader2,
   Save,
   Globe,
@@ -14,6 +15,11 @@ import type { Agent, AgentVisibility, RuntimeDevice } from "@multica/core/types"
 import { Button } from "@multica/ui/components/ui/button";
 import { Input } from "@multica/ui/components/ui/input";
 import { Label } from "@multica/ui/components/ui/label";
+import {
+  Popover,
+  PopoverTrigger,
+  PopoverContent,
+} from "@multica/ui/components/ui/popover";
 import { toast } from "sonner";
 import { api } from "@multica/core/api";
 import { useFileUpload } from "@multica/core/hooks/use-file-upload";
@@ -32,6 +38,8 @@ export function SettingsTab({
   const [description, setDescription] = useState(agent.description ?? "");
   const [visibility, setVisibility] = useState<AgentVisibility>(agent.visibility);
   const [maxTasks, setMaxTasks] = useState(agent.max_concurrent_tasks);
+  const [selectedRuntimeId, setSelectedRuntimeId] = useState(agent.runtime_id);
+  const [runtimeOpen, setRuntimeOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const { upload, uploading } = useFileUpload(api);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -50,11 +58,14 @@ export function SettingsTab({
     }
   };
 
+  const selectedRuntime = runtimes.find((r) => r.id === selectedRuntimeId) ?? null;
+
   const dirty =
     name !== agent.name ||
     description !== (agent.description ?? "") ||
     visibility !== agent.visibility ||
-    maxTasks !== agent.max_concurrent_tasks;
+    maxTasks !== agent.max_concurrent_tasks ||
+    selectedRuntimeId !== agent.runtime_id;
 
   const handleSave = async () => {
     if (!name.trim()) {
@@ -63,7 +74,16 @@ export function SettingsTab({
     }
     setSaving(true);
     try {
-      await onSave({ name: name.trim(), description, visibility, max_concurrent_tasks: maxTasks });
+      const updates: Partial<Agent> & { runtime_id?: string } = {
+        name: name.trim(),
+        description,
+        visibility,
+        max_concurrent_tasks: maxTasks,
+      };
+      if (selectedRuntimeId !== agent.runtime_id) {
+        updates.runtime_id = selectedRuntimeId;
+      }
+      await onSave(updates);
       toast.success("Settings saved");
     } catch {
       toast.error("Failed to save settings");
@@ -71,8 +91,6 @@ export function SettingsTab({
       setSaving(false);
     }
   };
-
-  const runtimeDevice = runtimes.find((r) => r.id === agent.runtime_id);
 
   return (
     <div className="max-w-lg space-y-6">
@@ -176,14 +194,75 @@ export function SettingsTab({
 
       <div>
         <Label className="text-xs text-muted-foreground">Runtime</Label>
-        <div className="mt-1 flex items-center gap-2 rounded-lg border px-3 py-2.5 text-sm text-muted-foreground">
-          {agent.runtime_mode === "cloud" ? (
-            <Cloud className="h-4 w-4" />
-          ) : (
-            <Monitor className="h-4 w-4" />
-          )}
-          {runtimeDevice?.name ?? (agent.runtime_mode === "cloud" ? "Cloud" : "Local")}
-        </div>
+        <Popover open={runtimeOpen} onOpenChange={setRuntimeOpen}>
+          <PopoverTrigger
+            disabled={runtimes.length === 0}
+            className="flex w-full items-center gap-3 rounded-lg border border-border bg-background px-3 py-2.5 mt-1.5 text-left text-sm transition-colors hover:bg-muted disabled:pointer-events-none disabled:opacity-50"
+          >
+            {selectedRuntime?.runtime_mode === "cloud" ? (
+              <Cloud className="h-4 w-4 shrink-0 text-muted-foreground" />
+            ) : (
+              <Monitor className="h-4 w-4 shrink-0 text-muted-foreground" />
+            )}
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2">
+                <span className="truncate font-medium">
+                  {selectedRuntime?.name ?? "No runtime available"}
+                </span>
+                {selectedRuntime?.runtime_mode === "cloud" && (
+                  <span className="shrink-0 rounded bg-info/10 px-1.5 py-0.5 text-xs font-medium text-info">
+                    Cloud
+                  </span>
+                )}
+              </div>
+              <div className="truncate text-xs text-muted-foreground">
+                {selectedRuntime?.device_info ?? "Select a runtime"}
+              </div>
+            </div>
+            <ChevronDown className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform ${runtimeOpen ? "rotate-180" : ""}`} />
+          </PopoverTrigger>
+          <PopoverContent align="start" className="w-[var(--anchor-width)] p-1 max-h-60 overflow-y-auto">
+            {runtimes.map((device) => (
+              <button
+                key={device.id}
+                onClick={() => {
+                  setSelectedRuntimeId(device.id);
+                  setRuntimeOpen(false);
+                }}
+                className={`flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left text-sm transition-colors ${
+                  device.id === selectedRuntimeId ? "bg-accent" : "hover:bg-accent/50"
+                }`}
+              >
+                {device.runtime_mode === "cloud" ? (
+                  <Cloud className="h-4 w-4 shrink-0 text-muted-foreground" />
+                ) : (
+                  <Monitor className="h-4 w-4 shrink-0 text-muted-foreground" />
+                )}
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="truncate font-medium">{device.name}</span>
+                    {device.runtime_mode === "cloud" && (
+                      <span className="shrink-0 rounded bg-info/10 px-1.5 py-0.5 text-xs font-medium text-info">
+                        Cloud
+                      </span>
+                    )}
+                  </div>
+                  <div className="truncate text-xs text-muted-foreground">{device.device_info}</div>
+                </div>
+                <span
+                  className={`h-2 w-2 shrink-0 rounded-full ${
+                    device.status === "online" ? "bg-success" : "bg-muted-foreground/40"
+                  }`}
+                />
+              </button>
+            ))}
+          </PopoverContent>
+        </Popover>
+        {selectedRuntime && selectedRuntime.status !== "online" && selectedRuntimeId !== agent.runtime_id && (
+          <p className="mt-1.5 text-xs text-warning">
+            This runtime is currently offline. Tasks won't be dispatched until it comes back online.
+          </p>
+        )}
       </div>
 
       <Button onClick={handleSave} disabled={!dirty || saving} size="sm">
