@@ -56,9 +56,10 @@ function TokenTooltipContent({
   const row = payload[0]!.payload;
 
   const items = [
-    { label: "Cached", value: row.cached },
     { label: "Input", value: row.input },
     { label: "Output", value: row.output },
+    { label: "Cache Read", value: row.cacheRead },
+    { label: "Cache Write", value: row.cacheWrite },
   ];
 
   return (
@@ -92,7 +93,7 @@ export function DailyTokenChart({ data }: { data: DailyTokenData[] }) {
     () =>
       data.map((d) => ({
         ...d,
-        total: d.input + d.output + d.cached,
+        total: d.input + d.output + d.cacheRead + d.cacheWrite,
       })),
     [data],
   );

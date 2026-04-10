@@ -72,7 +72,8 @@ export interface DailyTokenData {
   label: string;
   input: number;
   output: number;
-  cached: number;
+  cacheRead: number;
+  cacheWrite: number;
 }
 
 export interface DailyCostData {
@@ -101,11 +102,13 @@ export function aggregateByDate(usage: RuntimeUsage[]): {
       date: u.date,
       input: 0,
       output: 0,
-      cached: 0,
+      cacheRead: 0,
+      cacheWrite: 0,
     };
-    existing.input += u.input_tokens + u.cache_write_tokens;
+    existing.input += u.input_tokens;
     existing.output += u.output_tokens;
-    existing.cached += u.cache_read_tokens;
+    existing.cacheRead += u.cache_read_tokens;
+    existing.cacheWrite += u.cache_write_tokens;
     dateMap.set(u.date, existing);
 
     const dayCost = (costMap.get(u.date) ?? 0) + estimateCost(u);
