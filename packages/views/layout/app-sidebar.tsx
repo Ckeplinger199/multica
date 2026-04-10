@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useEffect } from "react";
 import { cn } from "@multica/ui/lib/utils";
 import { AppLink, useNavigation } from "../navigation";
 import {
@@ -112,6 +112,26 @@ export function AppSidebar({ topSlot, searchSlot, headerClassName, headerStyle }
     useWorkspaceStore.getState().clearWorkspace();
   };
 
+  // Global "C" shortcut to open create-issue modal (like Linear)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "c" && !e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey) {
+        const tag = (e.target as HTMLElement)?.tagName;
+        const isEditable =
+          tag === "INPUT" ||
+          tag === "TEXTAREA" ||
+          tag === "SELECT" ||
+          (e.target as HTMLElement)?.isContentEditable;
+        if (isEditable) return;
+        if (useModalStore.getState().modal) return;
+        e.preventDefault();
+        useModalStore.getState().open("create-issue");
+      }
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
   return (
       <Sidebar variant="inset">
         {topSlot}
@@ -203,6 +223,7 @@ export function AppSidebar({ topSlot, searchSlot, headerClassName, headerStyle }
                   <DraftDot />
                 </span>
                 <span>New Issue</span>
+                <kbd className="ml-auto text-[10px] font-medium text-muted-foreground/60 tracking-widest">C</kbd>
               </SidebarMenuButton>
             </SidebarMenuItem>
           </SidebarMenu>
