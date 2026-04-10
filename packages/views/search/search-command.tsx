@@ -158,6 +158,12 @@ export function SearchCommand() {
         <CommandPrimitive
           shouldFilter={false}
           className="flex size-full flex-col overflow-hidden rounded-xl bg-popover text-popover-foreground"
+          onKeyDown={(e) => {
+            if (e.key === "Escape") {
+              e.preventDefault();
+              setOpen(false);
+            }
+          }}
         >
           {/* Search input */}
           <div className="flex items-center gap-3 border-b px-4 py-3">
