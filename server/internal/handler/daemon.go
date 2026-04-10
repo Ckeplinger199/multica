@@ -149,18 +149,23 @@ func (h *Handler) DaemonRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Daemon token: verify the requested workspace matches the token's workspace.
+	// Verify workspace access and resolve owner.
+	// Daemon tokens (mdt_) prove workspace access directly; OwnerID will be zero
+	// (the SQL COALESCE preserves any existing owner on upsert).
+	// PAT/JWT tokens require a membership check and set OwnerID from the member.
+	var ownerID pgtype.UUID
 	if daemonWsID := middleware.DaemonWorkspaceIDFromContext(r.Context()); daemonWsID != "" {
 		if daemonWsID != req.WorkspaceID {
 			writeError(w, http.StatusNotFound, "workspace not found")
 			return
 		}
-	}
-
-	// Verify the caller is a member of the target workspace.
-	member, ok := h.requireWorkspaceMember(w, r, req.WorkspaceID, "workspace not found")
-	if !ok {
-		return
+		// ownerID stays zero — COALESCE keeps the existing owner on upsert.
+	} else {
+		member, ok := h.requireWorkspaceMember(w, r, req.WorkspaceID, "workspace not found")
+		if !ok {
+			return
+		}
+		ownerID = member.UserID
 	}
 
 	ws, err := h.Queries.GetWorkspace(r.Context(), parseUUID(req.WorkspaceID))
@@ -206,7 +211,7 @@ func (h *Handler) DaemonRegister(w http.ResponseWriter, r *http.Request) {
 			Status:      status,
 			DeviceInfo:  deviceInfo,
 			Metadata:    metadata,
-			OwnerID:     member.UserID,
+			OwnerID:     ownerID,
 		})
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "failed to register runtime: "+err.Error())
