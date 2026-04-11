@@ -80,13 +80,69 @@ func TestHTML(t *testing.T) {
 			input: `<div data-type="fileCard" data-href="http://example.com/file.pdf" data-filename="file.pdf"></div>`,
 			want:  `<div data-type="fileCard" data-href="http://example.com/file.pdf" data-filename="file.pdf"></div>`,
 		},
+		// Code block protection tests (issue #704)
+		{
+			name:  "fenced code block preserves angle brackets",
+			input: "```go\nfunc foo() <-chan int {\n\treturn make(chan int)\n}\n```",
+			want:  "```go\nfunc foo() <-chan int {\n\treturn make(chan int)\n}\n```",
+		},
+		{
+			name:  "fenced code block preserves generics",
+			input: "```typescript\nconst x: Array<string> = []\n```",
+			want:  "```typescript\nconst x: Array<string> = []\n```",
+		},
+		{
+			name:  "fenced code block preserves gt operator",
+			input: "```python\nif x > 0:\n    print(x)\n```",
+			want:  "```python\nif x > 0:\n    print(x)\n```",
+		},
+		{
+			name:  "fenced code block preserves HTML tags in code",
+			input: "```html\n<script>alert(1)</script>\n<div>hello</div>\n```",
+			want:  "```html\n<script>alert(1)</script>\n<div>hello</div>\n```",
+		},
+		{
+			name:  "inline code preserves angle brackets",
+			input: "Use `Array<string>` for typed arrays",
+			want:  "Use `Array<string>` for typed arrays",
+		},
+		{
+			name:  "inline code preserves gt operator",
+			input: "Check `x > 0` before proceeding",
+			want:  "Check `x > 0` before proceeding",
+		},
+		{
+			name:  "inline code preserves ampersand",
+			input: "Use `a & b` for bitwise AND",
+			want:  "Use `a & b` for bitwise AND",
+		},
+		{
+			name:  "double backtick inline code preserved",
+			input: "Use ``Map<string, List<int>>`` for nested generics",
+			want:  "Use ``Map<string, List<int>>`` for nested generics",
+		},
+		{
+			name:  "mixed code and XSS - code protected, XSS stripped",
+			input: "Use `x > 0` and <script>alert(1)</script> done",
+			want:  "Use `x > 0` and  done",
+		},
+		{
+			name:  "tilde fenced code block preserved",
+			input: "~~~rust\nfn main() -> Result<(), Error> {}\n~~~",
+			want:  "~~~rust\nfn main() -> Result<(), Error> {}\n~~~",
+		},
+		{
+			name:  "multiple code blocks preserved",
+			input: "```go\na > b\n```\n\nSome text\n\n```ts\nx < y\n```",
+			want:  "```go\na > b\n```\n\nSome text\n\n```ts\nx < y\n```",
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := HTML(tt.input)
 			if got != tt.want {
-				t.Errorf("HTML(%q) = %q, want %q", tt.input, got, tt.want)
+				t.Errorf("HTML() =\n  %q\nwant\n  %q", got, tt.want)
 			}
 		})
 	}
