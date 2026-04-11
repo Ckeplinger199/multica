@@ -107,6 +107,14 @@ multica daemon status
 
 ## Stopping Services
 
+If you installed via the install script:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/multica-ai/multica/main/scripts/install.sh | bash -s -- --stop
+```
+
+If you cloned the repo manually:
+
 ```bash
 # Stop the Docker Compose services (backend, frontend, database)
 make selfhost-stop

@@ -304,9 +304,38 @@ run_local() {
   printf "     ${CYAN}multica login${RESET}          # Authenticate (opens browser)\n"
   printf "     ${CYAN}multica daemon start${RESET}   # Start the agent daemon\n"
   printf "\n"
-  printf "  ${BOLD}To stop:${RESET}\n"
-  printf "     cd %s && make selfhost-stop\n" "$INSTALL_DIR"
+  printf "  ${BOLD}To stop all services:${RESET}\n"
+  printf "     curl -fsSL https://raw.githubusercontent.com/multica-ai/multica/main/scripts/install.sh | bash -s -- --stop\n"
+  printf "\n"
+  printf "  Or manually:\n"
+  printf "     cd %s && docker compose -f docker-compose.selfhost.yml down\n" "$INSTALL_DIR"
   printf "     multica daemon stop\n"
+  printf "\n"
+}
+
+# ---------------------------------------------------------------------------
+# Stop: shut down a self-hosted installation
+# ---------------------------------------------------------------------------
+run_stop() {
+  printf "\n"
+  info "Stopping Multica services..."
+
+  if [ -d "$INSTALL_DIR" ]; then
+    cd "$INSTALL_DIR"
+    if [ -f docker-compose.selfhost.yml ]; then
+      docker compose -f docker-compose.selfhost.yml down
+      ok "Docker services stopped"
+    else
+      warn "No docker-compose.selfhost.yml found at $INSTALL_DIR"
+    fi
+  else
+    warn "No Multica installation found at $INSTALL_DIR"
+  fi
+
+  if command_exists multica; then
+    multica daemon stop 2>/dev/null && ok "Daemon stopped" || true
+  fi
+
   printf "\n"
 }
 
@@ -319,11 +348,13 @@ main() {
   while [ $# -gt 0 ]; do
     case "$1" in
       --local)    mode="local" ;;
+      --stop)     mode="stop" ;;
       --help|-h)
-        echo "Usage: install.sh [--local]"
+        echo "Usage: install.sh [--local | --stop]"
         echo ""
         echo "  (default)  Install the Multica CLI to connect to multica.ai"
         echo "  --local    Self-host: set up a local Multica server + CLI"
+        echo "  --stop     Stop a self-hosted installation"
         exit 0
         ;;
       *) warn "Unknown option: $1" ;;
@@ -334,6 +365,7 @@ main() {
   case "$mode" in
     default) run_default ;;
     local)   run_local ;;
+    stop)    run_stop ;;
   esac
 }
 
