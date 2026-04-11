@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-// openclawBackend implements Backend by spawning `openclaw agent -p <prompt>
+// openclawBackend implements Backend by spawning `openclaw agent --message <prompt>
 // --output-format stream-json --yes` and reading streaming NDJSON events from
 // stdout — similar to the opencode backend.
 type openclawBackend struct {
@@ -46,7 +46,7 @@ func (b *openclawBackend) Execute(ctx context.Context, prompt string, opts ExecO
 	if opts.ResumeSessionID != "" {
 		args = append(args, "--session", opts.ResumeSessionID)
 	}
-	args = append(args, "-p", prompt)
+	args = append(args, "--message", prompt)
 
 	cmd := exec.CommandContext(runCtx, execPath, args...)
 	if opts.Cwd != "" {
