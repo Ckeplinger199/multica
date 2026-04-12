@@ -1,0 +1,178 @@
+---
+title: 参与贡献
+description: 贡献者的本地开发工作流程。
+---
+
+## 开发模式
+
+本地开发使用一个共享的 PostgreSQL 容器，每个 checkout 使用独立的数据库。
+
+- 主 checkout 通常使用 `.env` 和 `POSTGRES_DB=multica`
+- 每个 Git worktree 使用自己的 `.env.worktree`
+- 所有 checkout 连接到同一个 PostgreSQL 主机：`localhost:5432`
+- 隔离在数据库级别实现，而不是通过启动单独的 Docker Compose 项目
+- 后端和前端端口在每个 worktree 中仍然是唯一的
+
+## 前置要求
+
+- Node.js `v20+`
+- `pnpm` `v10.28+`
+- Go `v1.26+`
+- Docker
+
+## 首次设置
+
+### 主 checkout
+
+```bash
+cp .env.example .env
+make setup-main
+```
+
+`make setup-main` 会执行以下操作：
+
+- 使用 `pnpm install` 安装 JavaScript 依赖
+- 确保共享的 PostgreSQL 容器正在运行
+- 如果应用数据库不存在则创建它
+- 对该数据库运行所有迁移
+
+启动应用：
+
+```bash
+make start-main
+```
+
+### Worktree
+
+从 worktree 目录中：
+
+```bash
+make worktree-env
+make setup-worktree
+```
+
+启动 worktree 应用：
+
+```bash
+make start-worktree
+```
+
+## 日常工作流
+
+### 主 checkout
+
+```bash
+make start-main
+make stop-main
+make check-main
+```
+
+### 功能 worktree
+
+```bash
+git worktree add ../multica-feature -b feat/my-change main
+cd ../multica-feature
+make worktree-env
+make setup-worktree
+make start-worktree
+```
+
+日常操作：
+
+```bash
+make start-worktree
+make stop-worktree
+make check-worktree
+```
+
+## 同时运行主 checkout 和 worktree
+
+这是一等工作流。两个 checkout 使用同一个 PostgreSQL 容器，但使用不同的数据库和端口：
+
+| | 主 checkout | Worktree |
+|---|---|---|
+| 数据库 | `multica` | `multica_my_feature_702` |
+| 后端端口 | `8080` | 自动生成（例如 `18782`） |
+| 前端端口 | `3000` | 自动生成（例如 `13702`） |
+
+## 命令
+
+```bash
+# 前端（所有命令通过 Turborepo 执行）
+pnpm install
+pnpm dev:web          # Next.js 开发服务器（端口 3000）
+pnpm dev:desktop      # Electron 开发（electron-vite, HMR）
+pnpm build            # 构建所有前端应用
+pnpm typecheck        # TypeScript 检查
+pnpm lint             # ESLint
+pnpm test             # TS 测试（Vitest）
+
+# 后端（Go）
+make dev              # 运行 Go 服务器（端口 8080）
+make daemon           # 运行本地守护进程
+make build            # 构建服务器 + CLI 二进制文件
+make test             # Go 测试
+make sqlc             # 重新生成 sqlc 代码
+make migrate-up       # 运行数据库迁移
+make migrate-down     # 回滚迁移
+```
+
+## 测试
+
+运行所有本地检查：
+
+```bash
+make check
+```
+
+这会运行：
+
+1. TypeScript 类型检查
+2. TypeScript 单元测试
+3. Go 测试
+4. Playwright E2E 测试
+
+## 故障排除
+
+### 缺少环境文件
+
+创建所需的环境文件：
+
+```bash
+# 主 checkout
+cp .env.example .env
+
+# Worktree
+make worktree-env
+```
+
+### 检查 checkout 使用的数据库
+
+```bash
+cat .env           # 或 .env.worktree
+```
+
+查看 `POSTGRES_DB`、`DATABASE_URL`、`PORT`、`FRONTEND_PORT`。
+
+### 列出所有本地数据库
+
+```bash
+docker compose exec -T postgres psql -U multica -d postgres \
+  -At -c "select datname from pg_database order by datname;"
+```
+
+### 破坏性重置
+
+停止 PostgreSQL 并保留本地数据库：
+
+```bash
+make db-down
+```
+
+清除所有本地 PostgreSQL 数据：
+
+```bash
+docker compose down -v
+```
+
+> **警告：** 此操作会删除共享的 Docker 卷和所有数据库。之后你必须重新运行 `make setup-main` 或 `make setup-worktree`。

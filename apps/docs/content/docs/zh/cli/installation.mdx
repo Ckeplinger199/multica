@@ -1,0 +1,90 @@
+---
+title: CLI 安装
+description: 安装 Multica CLI 并启动智能体守护进程。
+---
+
+## 安装
+
+### Homebrew（macOS/Linux）
+
+```bash
+brew tap multica-ai/tap
+brew install multica
+```
+
+### 从源码构建
+
+```bash
+git clone https://github.com/multica-ai/multica.git
+cd multica
+make build
+cp server/bin/multica /usr/local/bin/multica
+```
+
+### 从 GitHub Releases 下载
+
+如果 Homebrew 不可用，可以直接下载二进制文件：
+
+```bash
+OS=$(uname -s | tr '[:upper:]' '[:lower:]')   # "darwin" or "linux"
+ARCH=$(uname -m)                                # "x86_64" or "arm64"
+
+# Normalize architecture name
+if [ "$ARCH" = "x86_64" ]; then
+  ARCH="amd64"
+fi
+
+# Get the latest release tag from GitHub
+LATEST=$(curl -sI https://github.com/multica-ai/multica/releases/latest \
+  | grep -i '^location:' | sed 's/.*tag\///' | tr -d '\r\n')
+
+# Download and extract
+curl -sL "https://github.com/multica-ai/multica/releases/download/${LATEST}/multica_${OS}_${ARCH}.tar.gz" \
+  -o /tmp/multica.tar.gz
+tar -xzf /tmp/multica.tar.gz -C /tmp multica
+sudo mv /tmp/multica /usr/local/bin/multica
+rm /tmp/multica.tar.gz
+```
+
+### 更新
+
+```bash
+multica update
+```
+
+该命令会自动检测你的安装方式（Homebrew 或手动安装）并相应升级。
+
+## 快速开始
+
+```bash
+# 1. 认证（打开浏览器登录）
+multica login
+
+# 2. 启动智能体守护进程
+multica daemon start
+
+# 3. 完成——你所关注的工作区中的智能体现在可以在你的机器上执行任务了
+```
+
+`multica login` 会自动发现你所属的所有工作区，并将它们添加到守护进程的监控列表中。
+
+## 验证
+
+```bash
+multica daemon status
+```
+
+确认以下内容：
+1. 状态为 `running`
+2. 至少列出一个智能体（例如 `claude`、`codex`）
+3. 至少有一个工作区正在被监控
+
+如果智能体列表为空，请安装至少一个 AI 智能体 CLI：
+- [Claude Code](https://docs.anthropic.com/en/docs/claude-code)（`claude`）
+- [Codex](https://github.com/openai/codex)（`codex`）
+
+然后重启守护进程：
+
+```bash
+multica daemon stop && multica daemon start
+```

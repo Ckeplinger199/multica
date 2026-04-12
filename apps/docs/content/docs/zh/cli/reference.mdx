@@ -1,0 +1,306 @@
+---
+title: CLI 参考
+description: Multica CLI 和智能体守护进程的完整命令参考。
+---
+
+`multica` CLI 将你的本地机器连接到 Multica。它负责认证、工作区管理、议题追踪，并运行在本地执行 AI 任务的智能体守护进程。
+
+## 认证
+
+### 浏览器登录
+
+```bash
+multica login
+```
+
+打开浏览器进行 OAuth 认证，创建有效期为 90 天的个人访问令牌，并自动配置你的工作区。
+
+### 令牌登录
+
+```bash
+multica login --token
+```
+
+通过直接粘贴个人访问令牌进行认证。适用于无图形界面的环境。
+
+### 检查状态
+
+```bash
+multica auth status
+```
+
+显示当前的服务器、用户和令牌有效性。
+
+### 登出
+
+```bash
+multica auth logout
+```
+
+移除已存储的认证令牌。
+
+## 智能体守护进程
+
+守护进程是本地的智能体运行时。它检测你机器上可用的 AI CLI，向 Multica 服务器注册，并在智能体被分配工作时执行任务。
+
+### 启动
+
+```bash
+multica daemon start
+```
+
+默认情况下，守护进程在后台运行，日志记录到 `~/.multica/daemon.log`。
+
+在前台运行（便于调试）：
+
+```bash
+multica daemon start --foreground
+```
+
+### 停止
+
+```bash
+multica daemon stop
+```
+
+### 状态
+
+```bash
+multica daemon status
+multica daemon status --output json
+```
+
+显示 PID、运行时间、检测到的智能体和监控的工作区。
+
+### 日志
+
+```bash
+multica daemon logs              # 最近 50 行
+multica daemon logs -f           # 实时跟踪（tail -f）
+multica daemon logs -n 100       # 最近 100 行
+```
+
+### 支持的智能体
+
+守护进程会自动检测 PATH 中的以下 AI CLI：
+
+| CLI | 命令 | 描述 |
+|-----|---------|-------------|
+| [Claude Code](https://docs.anthropic.com/en/docs/claude-code) | `claude` | Anthropic 的编程智能体 |
+| [Codex](https://github.com/openai/codex) | `codex` | OpenAI 的编程智能体 |
+
+你至少需要安装一个。守护进程会将每个检测到的 CLI 注册为可用运行时。
+
+### 工作原理
+
+1. 启动时，守护进程检测已安装的智能体 CLI，并为每个监控的工作区中的每个智能体注册运行时
+2. 它以可配置的间隔（默认：3 秒）轮询服务器获取已认领的任务
+3. 当任务到达时，它会创建隔离的工作区目录，启动智能体 CLI，并将结果流式传回
+4. 定期发送心跳（默认：15 秒），以便服务器知道守护进程仍然活跃
+5. 关闭时，所有运行时将被注销
+
+### 配置
+
+守护进程的行为通过标志或环境变量配置：
+
+| 设置 | 标志 | 环境变量 | 默认值 |
+|---------|------|--------------|---------|
+| 轮询间隔 | `--poll-interval` | `MULTICA_DAEMON_POLL_INTERVAL` | `3s` |
+| 心跳间隔 | `--heartbeat-interval` | `MULTICA_DAEMON_HEARTBEAT_INTERVAL` | `15s` |
+| 智能体超时 | `--agent-timeout` | `MULTICA_AGENT_TIMEOUT` | `2h` |
+| 最大并发任务数 | `--max-concurrent-tasks` | `MULTICA_DAEMON_MAX_CONCURRENT_TASKS` | `20` |
+| 守护进程 ID | `--daemon-id` | `MULTICA_DAEMON_ID` | 主机名 |
+| 设备名称 | `--device-name` | `MULTICA_DAEMON_DEVICE_NAME` | 主机名 |
+| 运行时名称 | `--runtime-name` | `MULTICA_AGENT_RUNTIME_NAME` | `Local Agent` |
+| 工作区根目录 | — | `MULTICA_WORKSPACES_ROOT` | `~/multica_workspaces` |
+
+智能体专属覆盖配置：
+
+| 变量 | 描述 |
+|----------|-------------|
+| `MULTICA_CLAUDE_PATH` | `claude` 二进制文件的自定义路径 |
+| `MULTICA_CLAUDE_MODEL` | 覆盖使用的 Claude 模型 |
+| `MULTICA_CODEX_PATH` | `codex` 二进制文件的自定义路径 |
+| `MULTICA_CODEX_MODEL` | 覆盖使用的 Codex 模型 |
+
+### 自托管服务器
+
+连接到自托管的 Multica 实例时，在登录前将 CLI 指向你的服务器：
+
+```bash
+export MULTICA_APP_URL=https://app.example.com
+export MULTICA_SERVER_URL=wss://api.example.com/ws
+
+multica login
+multica daemon start
+```
+
+或持久化设置：
+
+```bash
+multica config set app_url https://app.example.com
+multica config set server_url wss://api.example.com/ws
+```
+
+### 配置文件
+
+配置文件允许你在同一台机器上运行多个守护进程——例如，一个用于生产环境，一个用于预发布服务器。
+
+```bash
+# 为预发布服务器启动守护进程
+multica --profile staging login
+multica --profile staging daemon start
+
+# 默认配置文件单独运行
+multica daemon start
+```
+
+每个配置文件有自己的配置目录（`~/.multica/profiles/<name>/`）、守护进程状态、健康检查端口和工作区根目录。
+
+## 工作区
+
+### 列出工作区
+
+```bash
+multica workspace list
+```
+
+被监控的工作区用 `*` 标记。守护进程只处理被监控工作区的任务。
+
+### 监控 / 取消监控
+
+```bash
+multica workspace watch <workspace-id>
+multica workspace unwatch <workspace-id>
+```
+
+### 获取详情
+
+```bash
+multica workspace get <workspace-id>
+multica workspace get <workspace-id> --output json
+```
+
+### 列出成员
+
+```bash
+multica workspace members <workspace-id>
+```
+
+## 议题
+
+### 列出议题
+
+```bash
+multica issue list
+multica issue list --status in_progress
+multica issue list --priority urgent --assignee "Agent Name"
+multica issue list --limit 20 --output json
+```
+
+可用过滤器：`--status`、`--priority`、`--assignee`、`--limit`。
+
+### 获取议题
+
+```bash
+multica issue get <id>
+multica issue get <id> --output json
+```
+
+### 创建议题
+
+```bash
+multica issue create --title "Fix login bug" --description "..." --priority high --assignee "Lambda"
+```
+
+标志：`--title`（必需）、`--description`、`--status`、`--priority`、`--assignee`、`--parent`、`--due-date`。
+
+### 更新议题
+
+```bash
+multica issue update <id> --title "New title" --priority urgent
+```
+
+### 分配议题
+
+```bash
+multica issue assign <id> --to "Lambda"
+multica issue assign <id> --unassign
+```
+
+### 更改状态
+
+```bash
+multica issue status <id> in_progress
+```
+
+有效状态：`backlog`、`todo`、`in_progress`、`in_review`、`done`、`blocked`、`cancelled`。
+
+### 评论
+
+```bash
+# 列出评论
+multica issue comment list <issue-id>
+
+# 添加评论
+multica issue comment add <issue-id> --content "Looks good, merging now"
+
+# 回复特定评论
+multica issue comment add <issue-id> --parent <comment-id> --content "Thanks!"
+
+# 删除评论
+multica issue comment delete <comment-id>
+```
+
+### 执行历史
+
+```bash
+# 列出某个议题的所有执行记录
+multica issue runs <issue-id>
+multica issue runs <issue-id> --output json
+
+# 查看特定执行记录的消息
+multica issue run-messages <task-id>
+multica issue run-messages <task-id> --output json
+
+# 增量获取（仅获取指定序列号之后的消息）
+multica issue run-messages <task-id> --since 42 --output json
+```
+
+## 配置
+
+### 查看配置
+
+```bash
+multica config show
+```
+
+显示配置文件路径、服务器 URL、应用 URL 和默认工作区。
+
+### 设置值
+
+```bash
+multica config set server_url wss://api.example.com/ws
+multica config set app_url https://app.example.com
+multica config set workspace_id <workspace-id>
+```
+
+## 其他命令
+
+```bash
+multica version              # 显示 CLI 版本和提交哈希
+multica update               # 更新到最新版本
+multica agent list           # 列出当前工作区中的智能体
+```
+
+## 输出格式
+
+大多数命令支持 `--output`，有两种格式：
+
+- `table` —— 人类可读的表格（列表命令的默认格式）
+- `json` —— 结构化 JSON（适用于脚本和自动化）
+
+```bash
+multica issue list --output json
+multica daemon status --output json
+```

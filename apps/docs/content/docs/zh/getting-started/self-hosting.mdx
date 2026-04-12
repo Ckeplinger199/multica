@@ -1,0 +1,370 @@
+---
+title: 自托管指南
+description: 在你自己的基础设施上部署 Multica。
+---
+
+## 架构概览
+
+Multica 包含三个组件：
+
+| 组件 | 描述 | 技术 |
+|-----------|-------------|------------|
+| **后端** | REST API + WebSocket 服务器 | Go（单一二进制文件） |
+| **前端** | Web 应用 | Next.js 16 |
+| **数据库** | 主数据存储 | PostgreSQL 17 with pgvector |
+
+每个需要在本地运行 AI 智能体的用户还需要安装 **`multica` CLI** 并在自己的机器上运行**智能体守护进程**。
+
+## 前置要求
+
+- Docker 和 Docker Compose
+
+## 快速安装
+
+一条命令完成所有设置：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/multica-ai/multica/main/scripts/install.sh | bash -s -- --local
+```
+
+该脚本会克隆仓库、启动所有服务、安装 CLI 并完成配置。然后：
+
+1. 打开 http://localhost:3000——使用任意邮箱 + 验证码 **`888888`** 登录
+2. 运行 `multica login` 和 `multica daemon start`
+
+<Callout>
+如需分步设置，请参阅下方内容。
+</Callout>
+
+## 分步设置
+
+### 步骤 1 —— 启动服务器
+
+```bash
+git clone https://github.com/multica-ai/multica.git
+cd multica
+make selfhost
+```
+
+`make selfhost` 会自动创建 `.env`，生成随机的 `JWT_SECRET`，并通过 Docker Compose 启动所有服务。
+
+启动完成后：
+
+- **前端：** http://localhost:3000
+- **后端 API：** http://localhost:8080
+
+<Callout>
+如果你更喜欢手动执行 Docker Compose 步骤：`cp .env.example .env`，编辑 `JWT_SECRET`，然后 `docker compose -f docker-compose.selfhost.yml up -d`。
+</Callout>
+
+### 步骤 2 —— 登录
+
+打开 http://localhost:3000。输入任意邮箱地址，使用验证码 **`888888`** 登录。
+
+<Callout>
+此万能验证码在所有非生产环境中均可使用（当 `APP_ENV` 未设置为 `production` 时）。生产环境请配置邮件服务——参见下方[配置](#configuration)部分。
+</Callout>
+
+### 步骤 3 —— 安装 CLI 并启动守护进程
+
+守护进程运行在你的本地机器上（不在 Docker 内部）。它会检测已安装的 AI 智能体 CLI，向服务器注册，并执行任务。
+
+### a) 安装 CLI 和 AI 智能体
+
+```bash
+brew install multica-ai/tap/multica
+```
+
+你还需要至少一个 AI 智能体 CLI：
+- [Claude Code](https://docs.anthropic.com/en/docs/claude-code)（PATH 中有 `claude`）
+- [Codex](https://github.com/openai/codex)（PATH 中有 `codex`）
+
+### b) 一键设置
+
+```bash
+multica setup --local
+```
+
+该命令会自动：
+1. 配置 CLI 连接到 `localhost`
+2. 打开浏览器进行认证
+3. 发现你的工作区
+4. 在后台启动守护进程
+
+验证守护进程是否正在运行：
+
+```bash
+multica daemon status
+```
+
+<Callout>
+也可以手动配置：`multica config local && multica login && multica daemon start`
+</Callout>
+
+### 步骤 4 —— 验证并开始使用
+
+1. 在 http://localhost:3000 打开你的工作区
+2. 导航到 **Settings → Runtimes**——你应该能看到你的机器
+3. 前往 **Settings → Agents** 创建一个新智能体
+4. 创建一个议题并分配给你的智能体
+
+## 停止服务
+
+```bash
+# 停止 Docker Compose 服务
+make selfhost-stop
+
+# 停止本地守护进程
+multica daemon stop
+```
+
+## 切换到 Multica Cloud
+
+如果你一直在自托管，现在想将 CLI 切换到 [Multica Cloud](https://multica.ai)：
+
+```bash
+multica config set server_url https://api.multica.ai
+multica config set app_url https://multica.ai
+multica login
+```
+
+或者重新运行安装脚本（不带 `--local`）——它会自动重新配置 CLI：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/multica-ai/multica/main/scripts/install.sh | bash
+```
+
+<Callout>
+你的本地 Docker 服务不受影响。如果不再需要，请单独停止它们。
+</Callout>
+
+## 更新后重新构建
+
+```bash
+git pull
+make selfhost
+```
+
+数据库迁移会在后端启动时自动执行。
+
+---
+
+## 配置
+
+所有配置通过环境变量完成。以 `.env.example` 为起点。
+
+### 必需变量
+
+| 变量 | 描述 | 示例 |
+|----------|-------------|---------|
+| `DATABASE_URL` | PostgreSQL 连接字符串 | `postgres://multica:multica@localhost:5432/multica?sslmode=disable` |
+| `JWT_SECRET` | **必须修改默认值。** 用于签署 JWT 令牌的密钥。使用长随机字符串。 | `openssl rand -hex 32` |
+| `FRONTEND_ORIGIN` | 前端服务的 URL（用于 CORS） | `https://app.example.com` |
+
+### 邮件（认证必需）
+
+Multica 通过 [Resend](https://resend.com) 使用基于邮件的魔法链接认证。
+
+| 变量 | 描述 |
+|----------|-------------|
+| `RESEND_API_KEY` | 你的 Resend API 密钥 |
+| `RESEND_FROM_EMAIL` | 发件人邮箱地址（默认：`noreply@multica.ai`） |
+
+### Google OAuth（可选）
+
+| 变量 | 描述 |
+|----------|-------------|
+| `GOOGLE_CLIENT_ID` | Google OAuth 客户端 ID |
+| `GOOGLE_CLIENT_SECRET` | Google OAuth 客户端密钥 |
+| `GOOGLE_REDIRECT_URI` | OAuth 回调 URL（例如 `https://app.example.com/auth/callback`） |
+
+### 文件存储（可选）
+
+对于文件上传和附件，配置 S3 和 CloudFront：
+
+| 变量 | 描述 |
+|----------|-------------|
+| `S3_BUCKET` | S3 存储桶名称 |
+| `S3_REGION` | AWS 区域（默认：`us-west-2`） |
+| `CLOUDFRONT_DOMAIN` | CloudFront 分发域名 |
+| `CLOUDFRONT_KEY_PAIR_ID` | CloudFront 密钥对 ID，用于签名 URL |
+| `CLOUDFRONT_PRIVATE_KEY` | CloudFront 私钥（PEM 格式） |
+| `COOKIE_DOMAIN` | CloudFront 认证 Cookie 的域名 |
+
+### 服务器
+
+| 变量 | 默认值 | 描述 |
+|----------|---------|-------------|
+| `PORT` | `8080` | 后端服务器端口 |
+| `FRONTEND_PORT` | `3000` | 前端端口 |
+| `CORS_ALLOWED_ORIGINS` | `FRONTEND_ORIGIN` 的值 | 逗号分隔的允许来源列表 |
+| `LOG_LEVEL` | `info` | 日志级别：`debug`、`info`、`warn`、`error` |
+
+### CLI / 守护进程
+
+以下配置在每个用户的机器上设置，不在服务器上：
+
+| 变量 | 默认值 | 描述 |
+|----------|---------|-------------|
+| `MULTICA_SERVER_URL` | `ws://localhost:8080/ws` | 守护进程到服务器的 WebSocket URL |
+| `MULTICA_APP_URL` | `http://localhost:3000` | CLI 登录流程的前端 URL |
+| `MULTICA_DAEMON_POLL_INTERVAL` | `3s` | 守护进程轮询任务的间隔 |
+| `MULTICA_DAEMON_HEARTBEAT_INTERVAL` | `15s` | 心跳频率 |
+
+## 数据库设置
+
+Multica 需要安装了 pgvector 扩展的 PostgreSQL 17。
+
+### 使用自带的 Docker Compose
+
+```bash
+docker compose up -d postgres
+```
+
+这会在端口 5432 上启动一个 `pgvector/pgvector:pg17` 容器，使用默认凭据（`multica`/`multica`）。
+
+### 使用你自己的 PostgreSQL
+
+确保 pgvector 扩展可用：
+
+```sql
+CREATE EXTENSION IF NOT EXISTS vector;
+```
+
+### 运行迁移
+
+在启动服务器之前必须运行迁移：
+
+```bash
+# 使用已构建的二进制文件
+./server/bin/migrate up
+
+# 或从源码运行
+cd server && go run ./cmd/migrate up
+```
+
+## 手动设置（不使用 Docker Compose）
+
+如果你更喜欢手动构建和运行服务：
+
+**前置要求：** Go 1.26+、Node.js 20+、pnpm 10.28+、PostgreSQL 17 with pgvector。
+
+```bash
+# 启动你的 PostgreSQL（或使用：docker compose up -d postgres）
+
+# 构建后端
+make build
+
+# 运行数据库迁移
+DATABASE_URL="your-database-url" ./server/bin/migrate up
+
+# 启动后端服务器
+DATABASE_URL="your-database-url" PORT=8080 JWT_SECRET="your-secret" ./server/bin/server
+```
+
+前端：
+
+```bash
+pnpm install
+pnpm build
+
+# 启动前端（生产模式）
+cd apps/web
+REMOTE_API_URL=http://localhost:8080 pnpm start
+```
+
+## 反向代理
+
+在生产环境中，在后端和前端之前放置反向代理来处理 TLS 和路由。
+
+### Caddy（推荐）
+
+```
+app.example.com {
+    reverse_proxy localhost:3000
+}
+
+api.example.com {
+    reverse_proxy localhost:8080
+}
+```
+
+### Nginx
+
+```nginx
+# 前端
+server {
+    listen 443 ssl;
+    server_name app.example.com;
+
+    ssl_certificate     /path/to/cert.pem;
+    ssl_certificate_key /path/to/key.pem;
+
+    location / {
+        proxy_pass http://localhost:3000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+
+# 后端 API
+server {
+    listen 443 ssl;
+    server_name api.example.com;
+
+    ssl_certificate     /path/to/cert.pem;
+    ssl_certificate_key /path/to/key.pem;
+
+    location / {
+        proxy_pass http://localhost:8080;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # WebSocket 支持
+    location /ws {
+        proxy_pass http://localhost:8080;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_read_timeout 86400;
+    }
+}
+```
+
+当前端和后端使用不同域名时，请相应设置以下环境变量：
+
+```bash
+# 后端
+FRONTEND_ORIGIN=https://app.example.com
+CORS_ALLOWED_ORIGINS=https://app.example.com
+
+# 前端
+REMOTE_API_URL=https://api.example.com
+NEXT_PUBLIC_API_URL=https://api.example.com
+NEXT_PUBLIC_WS_URL=wss://api.example.com/ws
+```
+
+## 健康检查
+
+后端暴露了一个健康检查端点：
+
+```
+GET /health
+→ {"status":"ok"}
+```
+
+可用于负载均衡器健康检查或监控。
+
+## 升级
+
+1. 拉取最新代码或镜像
+2. 运行迁移：`./server/bin/migrate up`
+3. 重启后端和前端
+
+迁移仅支持向前执行，可以安全地在运行中的数据库上执行。它们是幂等的——多次运行不会产生任何影响。
