@@ -32,16 +32,11 @@ function Test-CommandExists {
 
 function Get-LatestVersion {
     try {
-        $response = Invoke-WebRequest -Uri "$RepoWebUrl/releases/latest" -MaximumRedirection 0 -ErrorAction SilentlyContinue 2>$null
+        $release = Invoke-RestMethod -Uri "https://api.github.com/repos/multica-ai/multica/releases/latest" -ErrorAction Stop
+        return $release.tag_name
     } catch {
-        $response = $_.Exception.Response
+        return $null
     }
-    if ($response -and $response.Headers -and $response.Headers.Location) {
-        $location = $response.Headers.Location
-        if ($location -is [array]) { $location = $location[0] }
-        return ($location -split "tag/" | Select-Object -Last 1).Trim()
-    }
-    return $null
 }
 
 # ---------------------------------------------------------------------------
@@ -50,7 +45,10 @@ function Get-LatestVersion {
 function Install-CliBinary {
     Write-Info "Installing Multica CLI from GitHub Releases..."
 
-    $arch = if ([Environment]::Is64BitOperatingSystem) { "amd64" } else { Write-Fail "Multica requires a 64-bit Windows installation." }
+    if (-not [Environment]::Is64BitOperatingSystem) {
+        Write-Fail "Multica requires a 64-bit Windows installation."
+    }
+    $arch = "amd64"
 
     $latest = Get-LatestVersion
     if (-not $latest) {
@@ -69,6 +67,27 @@ function Install-CliBinary {
     } catch {
         Remove-Item $tmpDir -Recurse -Force
         Write-Fail "Failed to download CLI binary: $_"
+    }
+
+    # Verify SHA256 checksum
+    $checksumUrl = "https://github.com/multica-ai/multica/releases/download/$latest/checksums.txt"
+    try {
+        $checksums = Invoke-WebRequest -Uri $checksumUrl -UseBasicParsing -ErrorAction Stop
+        $zipFile = Join-Path $tmpDir "multica.zip"
+        $actualHash = (Get-FileHash -Path $zipFile -Algorithm SHA256).Hash.ToLower()
+        $expectedLine = ($checksums.Content -split "`n") | Where-Object { $_ -match "multica_windows_$arch\.zip" } | Select-Object -First 1
+        if ($expectedLine) {
+            $expectedHash = ($expectedLine -split "\s+")[0].ToLower()
+            if ($actualHash -ne $expectedHash) {
+                Remove-Item $tmpDir -Recurse -Force
+                Write-Fail "Checksum verification failed. Expected: $expectedHash, Got: $actualHash"
+            }
+            Write-Ok "Checksum verified"
+        } else {
+            Write-Warn "Could not find checksum entry for windows_$arch — skipping verification."
+        }
+    } catch {
+        Write-Warn "Could not download checksums.txt — skipping verification."
     }
 
     Expand-Archive -Path (Join-Path $tmpDir "multica.zip") -DestinationPath $tmpDir -Force
@@ -127,9 +146,18 @@ function Install-Cli {
         $latestVer = Get-LatestVersion
 
         $currentCmp = $currentVer -replace '^v',''
-        $latestCmp = $latestVer -replace '^v',''
+        $latestCmp = if ($latestVer) { $latestVer -replace '^v','' } else { $null }
 
-        if (-not $latestVer -or $currentCmp -eq $latestCmp) {
+        $isUpToDate = -not $latestCmp
+        if (-not $isUpToDate) {
+            try {
+                $isUpToDate = [System.Version]$currentCmp -ge [System.Version]$latestCmp
+            } catch {
+                $isUpToDate = $currentCmp -eq $latestCmp
+            }
+        }
+
+        if ($isUpToDate) {
             Write-Ok "Multica CLI is up to date ($currentVer)"
             return
         }
@@ -185,6 +213,7 @@ function Install-Server {
 
     if (Test-Path (Join-Path $InstallDir ".git")) {
         Write-Info "Updating existing installation at $InstallDir..."
+        Write-Warn "Any local changes in $InstallDir will be overwritten."
         Push-Location $InstallDir
         git fetch origin main --depth 1 2>$null
         git reset --hard origin/main 2>$null
