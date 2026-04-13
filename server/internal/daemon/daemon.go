@@ -976,17 +976,82 @@ func (d *Daemon) runTask(ctx context.Context, task Task, provider string, taskLo
 
 	taskStart := time.Now()
 
-	session, err := backend.Execute(ctx, prompt, agent.ExecOptions{
+	execOpts := agent.ExecOptions{
 		Cwd:             env.WorkDir,
 		Model:           entry.Model,
 		Timeout:         d.cfg.AgentTimeout,
 		ResumeSessionID: task.PriorSessionID,
-	})
+	}
+
+	result, tools, err := d.executeAndDrain(ctx, backend, prompt, execOpts, taskLog, task.ID)
 	if err != nil {
 		return TaskResult{}, err
 	}
 
-	// Drain message channel — forward to server for live output + log locally.
+	// Fallback: if session resume failed, retry with a fresh session.
+	if result.Status == "failed" && task.PriorSessionID != "" {
+		taskLog.Warn("session resume failed, retrying with fresh session", "error", result.Error)
+		execOpts.ResumeSessionID = ""
+		if retryResult, retryTools, retryErr := d.executeAndDrain(ctx, backend, prompt, execOpts, taskLog, task.ID); retryErr == nil {
+			result = retryResult
+			tools = retryTools
+		}
+	}
+
+	elapsed := time.Since(taskStart).Round(time.Second)
+	taskLog.Info("agent finished",
+		"status", result.Status,
+		"duration", elapsed.String(),
+		"tools", tools,
+	)
+
+	// Convert agent usage map to task usage entries.
+	var usageEntries []TaskUsageEntry
+	for model, u := range result.Usage {
+		if u.InputTokens == 0 && u.OutputTokens == 0 && u.CacheReadTokens == 0 && u.CacheWriteTokens == 0 {
+			continue
+		}
+		usageEntries = append(usageEntries, TaskUsageEntry{
+			Provider:         provider,
+			Model:            model,
+			InputTokens:      u.InputTokens,
+			OutputTokens:     u.OutputTokens,
+			CacheReadTokens:  u.CacheReadTokens,
+			CacheWriteTokens: u.CacheWriteTokens,
+		})
+	}
+
+	switch result.Status {
+	case "completed":
+		if result.Output == "" {
+			return TaskResult{}, fmt.Errorf("%s returned empty output", provider)
+		}
+		return TaskResult{
+			Status:    "completed",
+			Comment:   result.Output,
+			SessionID: result.SessionID,
+			WorkDir:   env.WorkDir,
+			Usage:     usageEntries,
+		}, nil
+	case "timeout":
+		return TaskResult{}, fmt.Errorf("%s timed out after %s", provider, d.cfg.AgentTimeout)
+	default:
+		errMsg := result.Error
+		if errMsg == "" {
+			errMsg = fmt.Sprintf("%s execution %s", provider, result.Status)
+		}
+		return TaskResult{Status: "blocked", Comment: errMsg, Usage: usageEntries}, nil
+	}
+}
+
+// executeAndDrain runs a backend, drains its message stream (forwarding to the
+// server), and waits for the final result.
+func (d *Daemon) executeAndDrain(ctx context.Context, backend agent.Backend, prompt string, opts agent.ExecOptions, taskLog *slog.Logger, taskID string) (agent.Result, int32, error) {
+	session, err := backend.Execute(ctx, prompt, opts)
+	if err != nil {
+		return agent.Result{}, 0, err
+	}
+
 	var toolCount atomic.Int32
 	go func() {
 		var seq atomic.Int32
@@ -994,11 +1059,10 @@ func (d *Daemon) runTask(ctx context.Context, task Task, provider string, taskLo
 		var pendingText strings.Builder
 		var pendingThinking strings.Builder
 		var batch []TaskMessageData
-		callIDToTool := map[string]string{} // track callID → tool name for tool_result
+		callIDToTool := map[string]string{}
 
 		flush := func() {
 			mu.Lock()
-			// Flush any accumulated thinking as a single message.
 			if pendingThinking.Len() > 0 {
 				s := seq.Add(1)
 				batch = append(batch, TaskMessageData{
@@ -1008,7 +1072,6 @@ func (d *Daemon) runTask(ctx context.Context, task Task, provider string, taskLo
 				})
 				pendingThinking.Reset()
 			}
-			// Flush any accumulated text as a single message.
 			if pendingText.Len() > 0 {
 				s := seq.Add(1)
 				batch = append(batch, TaskMessageData{
@@ -1024,14 +1087,13 @@ func (d *Daemon) runTask(ctx context.Context, task Task, provider string, taskLo
 
 			if len(toSend) > 0 {
 				sendCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-				if err := d.client.ReportTaskMessages(sendCtx, task.ID, toSend); err != nil {
+				if err := d.client.ReportTaskMessages(sendCtx, taskID, toSend); err != nil {
 					taskLog.Debug("failed to report task messages", "error", err)
 				}
 				cancel()
 			}
 		}
 
-		// Periodically flush accumulated text/thinking messages.
 		ticker := time.NewTicker(500 * time.Millisecond)
 		defer ticker.Stop()
 
@@ -1072,7 +1134,6 @@ func (d *Daemon) runTask(ctx context.Context, task Task, provider string, taskLo
 				if len(output) > 8192 {
 					output = output[:8192]
 				}
-				// Resolve tool name from callID if not set directly.
 				toolName := msg.Tool
 				if toolName == "" && msg.CallID != "" {
 					mu.Lock()
@@ -1114,54 +1175,11 @@ func (d *Daemon) runTask(ctx context.Context, task Task, provider string, taskLo
 		}
 
 		close(done)
-		flush() // Final flush after channel closes.
+		flush()
 	}()
 
 	result := <-session.Result
-	elapsed := time.Since(taskStart).Round(time.Second)
-	taskLog.Info("agent finished",
-		"status", result.Status,
-		"duration", elapsed.String(),
-		"tools", toolCount.Load(),
-	)
-
-	// Convert agent usage map to task usage entries.
-	var usageEntries []TaskUsageEntry
-	for model, u := range result.Usage {
-		if u.InputTokens == 0 && u.OutputTokens == 0 && u.CacheReadTokens == 0 && u.CacheWriteTokens == 0 {
-			continue
-		}
-		usageEntries = append(usageEntries, TaskUsageEntry{
-			Provider:         provider,
-			Model:            model,
-			InputTokens:      u.InputTokens,
-			OutputTokens:     u.OutputTokens,
-			CacheReadTokens:  u.CacheReadTokens,
-			CacheWriteTokens: u.CacheWriteTokens,
-		})
-	}
-
-	switch result.Status {
-	case "completed":
-		if result.Output == "" {
-			return TaskResult{}, fmt.Errorf("%s returned empty output", provider)
-		}
-		return TaskResult{
-			Status:    "completed",
-			Comment:   result.Output,
-			SessionID: result.SessionID,
-			WorkDir:   env.WorkDir,
-			Usage:     usageEntries,
-		}, nil
-	case "timeout":
-		return TaskResult{}, fmt.Errorf("%s timed out after %s", provider, d.cfg.AgentTimeout)
-	default:
-		errMsg := result.Error
-		if errMsg == "" {
-			errMsg = fmt.Sprintf("%s execution %s", provider, result.Status)
-		}
-		return TaskResult{Status: "blocked", Comment: errMsg, Usage: usageEntries}, nil
-	}
+	return result, toolCount.Load(), nil
 }
 
 // repoDataToInfo converts daemon RepoData to repocache RepoInfo.
