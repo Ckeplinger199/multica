@@ -988,12 +988,19 @@ func (d *Daemon) runTask(ctx context.Context, task Task, provider string, taskLo
 		return TaskResult{}, err
 	}
 
-	// Fallback: if session resume failed, retry with a fresh session.
-	if result.Status == "failed" && task.PriorSessionID != "" {
+	// Fallback: if session resume failed before establishing a session, retry
+	// with a fresh session. We check SessionID == "" to distinguish a resume
+	// failure (no session established) from a failure during actual execution.
+	if result.Status == "failed" && task.PriorSessionID != "" && result.SessionID == "" {
+		firstUsage := result.Usage
 		taskLog.Warn("session resume failed, retrying with fresh session", "error", result.Error)
 		execOpts.ResumeSessionID = ""
-		if retryResult, retryTools, retryErr := d.executeAndDrain(ctx, backend, prompt, execOpts, taskLog, task.ID); retryErr == nil {
+		retryResult, retryTools, retryErr := d.executeAndDrain(ctx, backend, prompt, execOpts, taskLog, task.ID)
+		if retryErr != nil {
+			taskLog.Error("fresh session also failed to start", "error", retryErr)
+		} else {
 			result = retryResult
+			result.Usage = mergeUsage(firstUsage, result.Usage)
 			tools = retryTools
 		}
 	}
@@ -1180,6 +1187,28 @@ func (d *Daemon) executeAndDrain(ctx context.Context, backend agent.Backend, pro
 
 	result := <-session.Result
 	return result, toolCount.Load(), nil
+}
+
+func mergeUsage(a, b map[string]agent.TokenUsage) map[string]agent.TokenUsage {
+	if len(a) == 0 {
+		return b
+	}
+	if len(b) == 0 {
+		return a
+	}
+	merged := make(map[string]agent.TokenUsage, len(a)+len(b))
+	for model, u := range a {
+		merged[model] = u
+	}
+	for model, u := range b {
+		existing := merged[model]
+		existing.InputTokens += u.InputTokens
+		existing.OutputTokens += u.OutputTokens
+		existing.CacheReadTokens += u.CacheReadTokens
+		existing.CacheWriteTokens += u.CacheWriteTokens
+		merged[model] = existing
+	}
+	return merged
 }
 
 // repoDataToInfo converts daemon RepoData to repocache RepoInfo.
