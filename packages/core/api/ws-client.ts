@@ -22,7 +22,7 @@ export class WSClient {
     this.cookieAuth = options?.cookieAuth ?? false;
   }
 
-  setAuth(token: string, workspaceId: string) {
+  setAuth(token: string | null, workspaceId: string) {
     this.token = token;
     this.workspaceId = workspaceId;
   }

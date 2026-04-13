@@ -1,7 +1,9 @@
 package auth
 
 import (
+	"crypto/hmac"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/hex"
 	"net/http"
 	"os"
@@ -24,12 +26,22 @@ func isSecureCookie() bool {
 	return env == "production" || env == "staging"
 }
 
-func generateCSRFToken() (string, error) {
-	b := make([]byte, 32)
-	if _, err := rand.Read(b); err != nil {
+// generateCSRFToken creates a CSRF token bound to the auth token via HMAC.
+// Format: hex(nonce) + "." + hex(HMAC-SHA256(nonce, authToken)).
+// This ensures an attacker who can write cookies on a subdomain cannot forge
+// a valid CSRF token without knowing the auth token.
+func generateCSRFToken(authToken string) (string, error) {
+	nonce := make([]byte, 16)
+	if _, err := rand.Read(nonce); err != nil {
 		return "", err
 	}
-	return hex.EncodeToString(b), nil
+	nonceHex := hex.EncodeToString(nonce)
+
+	mac := hmac.New(sha256.New, []byte(authToken))
+	mac.Write(nonce)
+	sig := hex.EncodeToString(mac.Sum(nil))
+
+	return nonceHex + "." + sig, nil
 }
 
 // SetAuthCookies sets the HttpOnly auth cookie and the readable CSRF cookie on the response.
@@ -46,10 +58,10 @@ func SetAuthCookies(w http.ResponseWriter, token string) error {
 		Expires:  time.Now().Add(30 * 24 * time.Hour),
 		HttpOnly: true,
 		Secure:   secure,
-		SameSite: http.SameSiteLaxMode,
+		SameSite: http.SameSiteStrictMode,
 	})
 
-	csrfToken, err := generateCSRFToken()
+	csrfToken, err := generateCSRFToken(token)
 	if err != nil {
 		return err
 	}
@@ -63,7 +75,7 @@ func SetAuthCookies(w http.ResponseWriter, token string) error {
 		Expires:  time.Now().Add(30 * 24 * time.Hour),
 		HttpOnly: false,
 		Secure:   secure,
-		SameSite: http.SameSiteLaxMode,
+		SameSite: http.SameSiteStrictMode,
 	})
 
 	return nil
@@ -83,7 +95,7 @@ func ClearAuthCookies(w http.ResponseWriter) {
 		Expires:  time.Unix(0, 0),
 		HttpOnly: true,
 		Secure:   secure,
-		SameSite: http.SameSiteLaxMode,
+		SameSite: http.SameSiteStrictMode,
 	})
 
 	http.SetCookie(w, &http.Cookie{
@@ -95,11 +107,13 @@ func ClearAuthCookies(w http.ResponseWriter) {
 		Expires:  time.Unix(0, 0),
 		HttpOnly: false,
 		Secure:   secure,
-		SameSite: http.SameSiteLaxMode,
+		SameSite: http.SameSiteStrictMode,
 	})
 }
 
-// ValidateCSRF checks that the X-CSRF-Token header matches the CSRF cookie.
+// ValidateCSRF checks the X-CSRF-Token header against the auth cookie.
+// The CSRF token is HMAC-signed with the auth token, so the server verifies
+// the signature rather than simply comparing cookie == header.
 // Returns true if validation passes (including for safe methods that don't need CSRF).
 func ValidateCSRF(r *http.Request) bool {
 	switch r.Method {
@@ -107,11 +121,32 @@ func ValidateCSRF(r *http.Request) bool {
 		return true
 	}
 
-	csrfCookie, err := r.Cookie(CSRFCookieName)
-	if err != nil || csrfCookie.Value == "" {
+	csrfHeader := r.Header.Get("X-CSRF-Token")
+	if csrfHeader == "" {
 		return false
 	}
 
-	csrfHeader := r.Header.Get("X-CSRF-Token")
-	return csrfHeader != "" && csrfHeader == csrfCookie.Value
+	authCookie, err := r.Cookie(AuthCookieName)
+	if err != nil || authCookie.Value == "" {
+		return false
+	}
+
+	parts := strings.SplitN(csrfHeader, ".", 2)
+	if len(parts) != 2 {
+		return false
+	}
+
+	nonce, err := hex.DecodeString(parts[0])
+	if err != nil {
+		return false
+	}
+
+	expectedSig, err := hex.DecodeString(parts[1])
+	if err != nil {
+		return false
+	}
+
+	mac := hmac.New(sha256.New, []byte(authCookie.Value))
+	mac.Write(nonce)
+	return hmac.Equal(mac.Sum(nil), expectedSig)
 }

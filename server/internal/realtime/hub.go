@@ -7,6 +7,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/gorilla/websocket"
@@ -24,10 +25,10 @@ type PATResolver interface {
 	ResolveToken(ctx context.Context, token string) (userID string, ok bool)
 }
 
-var allowedWSOrigins []string
+var allowedWSOrigins atomic.Value // holds []string
 
 func init() {
-	allowedWSOrigins = loadAllowedOrigins()
+	allowedWSOrigins.Store(loadAllowedOrigins())
 }
 
 func loadAllowedOrigins() []string {
@@ -59,16 +60,16 @@ func loadAllowedOrigins() []string {
 
 // SetAllowedOrigins overrides the WebSocket origin whitelist (called from router setup).
 func SetAllowedOrigins(origins []string) {
-	allowedWSOrigins = origins
+	allowedWSOrigins.Store(origins)
 }
 
 func checkOrigin(r *http.Request) bool {
 	origin := r.Header.Get("Origin")
 	if origin == "" {
-		// Non-browser clients (CLI, Electron, daemon) may not send Origin.
 		return true
 	}
-	for _, allowed := range allowedWSOrigins {
+	origins := allowedWSOrigins.Load().([]string)
+	for _, allowed := range origins {
 		if origin == allowed {
 			return true
 		}

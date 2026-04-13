@@ -57,10 +57,10 @@ export function WSProvider({
   useEffect(() => {
     if (!user || !workspace) return;
 
-    // In cookie mode the HttpOnly cookie authenticates the WS upgrade request.
-    // In token mode we need a token from storage.
-    const token = cookieAuth ? "cookie" : storage.getItem("multica_token");
-    if (!token) return;
+    // In token mode we need a token from storage; in cookie mode the HttpOnly
+    // cookie is sent automatically with the WS upgrade request.
+    const token = cookieAuth ? null : storage.getItem("multica_token");
+    if (!cookieAuth && !token) return;
 
     const ws = new WSClient(wsUrl, {
       logger: createLogger("ws"),

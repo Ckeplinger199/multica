@@ -629,11 +629,9 @@ export class ApiClient {
     const start = Date.now();
     this.logger.info("→ POST /api/upload-file", { rid });
 
-    const uploadHeaders = this.authHeaders();
-    delete uploadHeaders["Content-Type"];
     const res = await fetch(`${this.baseUrl}/api/upload-file`, {
       method: "POST",
-      headers: uploadHeaders,
+      headers: this.authHeaders(),
       body: formData,
       credentials: "include",
     });
