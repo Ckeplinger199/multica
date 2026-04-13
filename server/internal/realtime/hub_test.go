@@ -52,10 +52,15 @@ func newTestHub(t *testing.T) (*Hub, *httptest.Server) {
 func connectWS(t *testing.T, server *httptest.Server) *websocket.Conn {
 	t.Helper()
 	token := makeTestToken(t)
-	wsURL := "ws" + strings.TrimPrefix(server.URL, "http") + "/ws?token=" + token + "&workspace_id=" + testWorkspaceID
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http") + "/ws?workspace_id=" + testWorkspaceID
 	conn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
 	if err != nil {
 		t.Fatalf("failed to connect WebSocket: %v", err)
+	}
+	// First-message auth: send token as the first frame.
+	authMsg := `{"type":"auth","payload":{"token":"` + token + `"}}`
+	if err := conn.WriteMessage(websocket.TextMessage, []byte(authMsg)); err != nil {
+		t.Fatalf("failed to send auth message: %v", err)
 	}
 	return conn
 }

@@ -29,16 +29,24 @@ export class WSClient {
 
   connect() {
     const url = new URL(this.baseUrl);
-    // In cookie mode, the browser sends the HttpOnly cookie automatically
-    // with the WebSocket upgrade request — no token in URL needed.
-    if (!this.cookieAuth && this.token)
-      url.searchParams.set("token", this.token);
+    // Token is never sent as a URL query parameter — it would be logged by
+    // proxies, CDNs, and browser history.  In cookie mode the HttpOnly cookie
+    // is sent automatically with the upgrade request.  In token mode the token
+    // is delivered as the first WebSocket message after the connection opens.
     if (this.workspaceId)
       url.searchParams.set("workspace_id", this.workspaceId);
 
     this.ws = new WebSocket(url.toString());
 
     this.ws.onopen = () => {
+      // First-message auth: send token immediately after the connection opens
+      // so it never appears in the URL.
+      if (!this.cookieAuth && this.token) {
+        this.ws!.send(
+          JSON.stringify({ type: "auth", payload: { token: this.token } }),
+        );
+      }
+
       this.logger.info("connected");
       if (this.hasConnectedBefore) {
         for (const cb of this.onReconnectCallbacks) {
