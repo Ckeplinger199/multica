@@ -44,7 +44,7 @@ function ActorAvatar({
       style={{ width: size, height: size, fontSize: size * 0.45 }}
       title={name}
     >
-      <div className="h-full w-full overflow-hidden rounded-full">
+      <div className="h-full w-full overflow-hidden rounded-[inherit]">
         {avatarUrl && !imgError ? (
           <img
             src={avatarUrl}
