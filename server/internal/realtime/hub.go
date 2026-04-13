@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 
@@ -23,11 +24,61 @@ type PATResolver interface {
 	ResolveToken(ctx context.Context, token string) (userID string, ok bool)
 }
 
-var upgrader = websocket.Upgrader{
-	CheckOrigin: func(r *http.Request) bool {
-		// TODO: Restrict origins in production
+var allowedWSOrigins []string
+
+func init() {
+	allowedWSOrigins = loadAllowedOrigins()
+}
+
+func loadAllowedOrigins() []string {
+	raw := strings.TrimSpace(os.Getenv("ALLOWED_ORIGINS"))
+	if raw == "" {
+		raw = strings.TrimSpace(os.Getenv("CORS_ALLOWED_ORIGINS"))
+	}
+	if raw == "" {
+		raw = strings.TrimSpace(os.Getenv("FRONTEND_ORIGIN"))
+	}
+	if raw == "" {
+		return []string{
+			"http://localhost:3000",
+			"http://localhost:5173",
+			"http://localhost:5174",
+		}
+	}
+
+	parts := strings.Split(raw, ",")
+	origins := make([]string, 0, len(parts))
+	for _, part := range parts {
+		origin := strings.TrimSpace(part)
+		if origin != "" {
+			origins = append(origins, origin)
+		}
+	}
+	return origins
+}
+
+// SetAllowedOrigins overrides the WebSocket origin whitelist (called from router setup).
+func SetAllowedOrigins(origins []string) {
+	allowedWSOrigins = origins
+}
+
+func checkOrigin(r *http.Request) bool {
+	origin := r.Header.Get("Origin")
+	if origin == "" {
+		// Non-browser clients (CLI, Electron, daemon) may not send Origin.
 		return true
-	},
+	}
+	for _, allowed := range allowedWSOrigins {
+		if origin == allowed {
+			return true
+		}
+	}
+	slog.Warn("ws: rejected origin", "origin", origin)
+	return false
+}
+
+var upgrader = websocket.Upgrader{
+	CheckOrigin: checkOrigin,
 }
 
 // Client represents a single WebSocket connection with identity.
@@ -220,13 +271,23 @@ func (h *Hub) Broadcast(message []byte) {
 	h.broadcast <- message
 }
 
-// HandleWebSocket upgrades an HTTP connection to WebSocket with JWT or PAT auth.
+// HandleWebSocket upgrades an HTTP connection to WebSocket with JWT, PAT, or cookie auth.
 func HandleWebSocket(hub *Hub, mc MembershipChecker, pr PATResolver, w http.ResponseWriter, r *http.Request) {
-	tokenStr := r.URL.Query().Get("token")
 	workspaceID := r.URL.Query().Get("workspace_id")
+	if workspaceID == "" {
+		http.Error(w, `{"error":"workspace_id required"}`, http.StatusUnauthorized)
+		return
+	}
 
-	if tokenStr == "" || workspaceID == "" {
-		http.Error(w, `{"error":"token and workspace_id required"}`, http.StatusUnauthorized)
+	// Resolve token: query param first, then cookie fallback.
+	tokenStr := r.URL.Query().Get("token")
+	if tokenStr == "" {
+		if cookie, err := r.Cookie(auth.AuthCookieName); err == nil && cookie.Value != "" {
+			tokenStr = cookie.Value
+		}
+	}
+	if tokenStr == "" {
+		http.Error(w, `{"error":"authentication required"}`, http.StatusUnauthorized)
 		return
 	}
 
