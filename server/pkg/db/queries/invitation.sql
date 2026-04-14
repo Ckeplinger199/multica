@@ -13,7 +13,7 @@ SELECT wi.*,
        u.email AS inviter_email
 FROM workspace_invitation wi
 JOIN "user" u ON u.id = wi.inviter_id
-WHERE wi.workspace_id = $1 AND wi.status = 'pending'
+WHERE wi.workspace_id = $1 AND wi.status = 'pending' AND wi.expires_at > now()
 ORDER BY wi.created_at DESC;
 
 -- name: ListPendingInvitationsForUser :many

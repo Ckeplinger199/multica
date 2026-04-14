@@ -201,8 +201,9 @@ func (h *Handler) RevokeInvitation(w http.ResponseWriter, r *http.Request) {
 
 	userID := requestUserID(r)
 	h.publish(protocol.EventInvitationRevoked, workspaceID, "member", userID, map[string]any{
-		"invitation_id": invitationID,
-		"invitee_email": inv.InviteeEmail,
+		"invitation_id":   invitationID,
+		"invitee_email":   inv.InviteeEmail,
+		"invitee_user_id": uuidToPtr(inv.InviteeUserID),
 	})
 
 	w.WriteHeader(http.StatusNoContent)

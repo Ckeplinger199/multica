@@ -98,12 +98,16 @@ func registerListeners(bus *events.Bus, hub *realtime.Hub) {
 		}
 	})
 
-	// invitation:revoked — notify the invitee that their invitation was cancelled.
+	// invitation:revoked — send to the invitee so their pending list updates.
 	bus.Subscribe(protocol.EventInvitationRevoked, func(e events.Event) {
-		// This event is workspace-scoped; invitee may not be a member yet so we
-		// broadcast to workspace (admins see updates) via SubscribeAll.
-		// If the invitee is a registered user we could also send directly, but
-		// the simpler approach is to let the frontend poll/refetch on focus.
+		payload, ok := e.Payload.(map[string]any)
+		if !ok {
+			return
+		}
+		uid, _ := payload["invitee_user_id"].(*string)
+		if uid != nil && *uid != "" {
+			sendToRecipient(hub, e, *uid)
+		}
 	})
 
 	// member:added — also send to the invited user so they discover the new workspace.

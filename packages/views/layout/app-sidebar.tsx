@@ -165,20 +165,6 @@ export function AppSidebar({ topSlot, searchSlot, headerClassName, headerStyle }
   const switchWorkspace = useWorkspaceStore((s) => s.switchWorkspace);
   const { data: workspaces = [] } = useQuery(workspaceListOptions());
   const { data: myInvitations = [] } = useQuery(myInvitationListOptions());
-  const queryClient2 = useQueryClient();
-  const acceptInvitationMut = useMutation({
-    mutationFn: (id: string) => api.acceptInvitation(id),
-    onSuccess: () => {
-      queryClient2.invalidateQueries({ queryKey: workspaceKeys.myInvitations() });
-      queryClient2.invalidateQueries({ queryKey: workspaceKeys.list() });
-    },
-  });
-  const declineInvitationMut = useMutation({
-    mutationFn: (id: string) => api.declineInvitation(id),
-    onSuccess: () => {
-      queryClient2.invalidateQueries({ queryKey: workspaceKeys.myInvitations() });
-    },
-  });
 
   const wsId = workspace?.id;
   const { data: inboxItems = [] } = useQuery({
@@ -212,6 +198,19 @@ export function AppSidebar({ topSlot, searchSlot, headerClassName, headerStyle }
   );
 
   const queryClient = useQueryClient();
+  const acceptInvitationMut = useMutation({
+    mutationFn: (id: string) => api.acceptInvitation(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: workspaceKeys.myInvitations() });
+      queryClient.invalidateQueries({ queryKey: workspaceKeys.list() });
+    },
+  });
+  const declineInvitationMut = useMutation({
+    mutationFn: (id: string) => api.declineInvitation(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: workspaceKeys.myInvitations() });
+    },
+  });
   const logout = () => {
     queryClient.clear();
     authLogout();
