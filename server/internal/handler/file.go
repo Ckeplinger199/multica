@@ -153,8 +153,7 @@ func (h *Handler) UploadFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Generate a UUIDv7 to use as both the attachment ID and S3 key.
-	id, err := uuid.NewV7()
+	id, err := uuid.NewRandom()
 	if err != nil {
 		slog.Error("failed to generate uuid", "error", err)
 		writeError(w, http.StatusInternalServerError, "internal error")
