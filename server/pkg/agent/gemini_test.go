@@ -1,13 +1,14 @@
 package agent
 
 import (
+	"log/slog"
 	"testing"
 )
 
 func TestBuildGeminiArgsBaseline(t *testing.T) {
 	t.Parallel()
 
-	args := buildGeminiArgs("write a haiku", ExecOptions{})
+	args := buildGeminiArgs("write a haiku", ExecOptions{}, slog.Default())
 	expected := []string{
 		"-p", "write a haiku",
 		"--yolo",
@@ -27,7 +28,7 @@ func TestBuildGeminiArgsBaseline(t *testing.T) {
 func TestBuildGeminiArgsWithModel(t *testing.T) {
 	t.Parallel()
 
-	args := buildGeminiArgs("hi", ExecOptions{Model: "gemini-2.5-pro"})
+	args := buildGeminiArgs("hi", ExecOptions{Model: "gemini-2.5-pro"}, slog.Default())
 
 	var foundModel bool
 	for i, a := range args {
@@ -47,7 +48,7 @@ func TestBuildGeminiArgsWithModel(t *testing.T) {
 func TestBuildGeminiArgsWithResume(t *testing.T) {
 	t.Parallel()
 
-	args := buildGeminiArgs("hi", ExecOptions{ResumeSessionID: "3"})
+	args := buildGeminiArgs("hi", ExecOptions{ResumeSessionID: "3"}, slog.Default())
 
 	var foundResume bool
 	for i, a := range args {
@@ -67,7 +68,7 @@ func TestBuildGeminiArgsWithResume(t *testing.T) {
 func TestBuildGeminiArgsOmitsModelWhenEmpty(t *testing.T) {
 	t.Parallel()
 
-	args := buildGeminiArgs("hi", ExecOptions{})
+	args := buildGeminiArgs("hi", ExecOptions{}, slog.Default())
 	for _, a := range args {
 		if a == "-m" {
 			t.Fatalf("expected no -m flag when Model is empty, got args=%v", args)
