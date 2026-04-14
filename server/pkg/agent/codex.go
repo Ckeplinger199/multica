@@ -34,7 +34,8 @@ func (b *codexBackend) Execute(ctx context.Context, prompt string, opts ExecOpti
 	}
 	runCtx, cancel := context.WithTimeout(ctx, timeout)
 
-	cmd := exec.CommandContext(runCtx, execPath, "app-server", "--listen", "stdio://")
+	codexArgs := append([]string{"app-server", "--listen", "stdio://"}, opts.CustomArgs...)
+	cmd := exec.CommandContext(runCtx, execPath, codexArgs...)
 	if opts.Cwd != "" {
 		cmd.Dir = opts.Cwd
 	}

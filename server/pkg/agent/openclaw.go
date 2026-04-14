@@ -47,6 +47,7 @@ func (b *openclawBackend) Execute(ctx context.Context, prompt string, opts ExecO
 	if opts.Timeout > 0 {
 		args = append(args, "--timeout", fmt.Sprintf("%d", int(opts.Timeout.Seconds())))
 	}
+	args = append(args, opts.CustomArgs...)
 	args = append(args, "--message", prompt)
 
 	cmd := exec.CommandContext(runCtx, execPath, args...)

@@ -45,6 +45,7 @@ func (b *opencodeBackend) Execute(ctx context.Context, prompt string, opts ExecO
 	if opts.ResumeSessionID != "" {
 		args = append(args, "--session", opts.ResumeSessionID)
 	}
+	args = append(args, opts.CustomArgs...)
 	args = append(args, prompt)
 
 	cmd := exec.CommandContext(runCtx, execPath, args...)

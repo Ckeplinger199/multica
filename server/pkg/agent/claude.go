@@ -363,6 +363,7 @@ func buildClaudeArgs(opts ExecOptions) []string {
 	if opts.ResumeSessionID != "" {
 		args = append(args, "--resume", opts.ResumeSessionID)
 	}
+	args = append(args, opts.CustomArgs...)
 	return args
 }
 

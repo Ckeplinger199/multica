@@ -251,5 +251,6 @@ func buildGeminiArgs(prompt string, opts ExecOptions) []string {
 	if opts.ResumeSessionID != "" {
 		args = append(args, "-r", opts.ResumeSessionID)
 	}
+	args = append(args, opts.CustomArgs...)
 	return args
 }
