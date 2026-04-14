@@ -48,21 +48,6 @@ Multica manages the full agent lifecycle: from task assignment to execution moni
 
 ---
 
-## Multica vs Paperclip
-
-| | Multica | Paperclip |
-|---|---------|-----------|
-| **Focus** | Team AI agent collaboration platform | Solo AI agent company simulator |
-| **User model** | Multi-user teams with roles & permissions | Single board operator |
-| **Agent interaction** | Issues + Chat conversations | Issues + Heartbeat |
-| **Deployment** | Cloud-first | Local-first |
-| **Management depth** | Lightweight (Issues / Projects / Labels) | Heavy governance (Org chart / Approvals / Budgets) |
-| **Extensibility** | Skills system | Skills + Plugin system |
-
-**TL;DR — Multica is built for teams that want to collaborate with AI agents on real projects together.**
-
----
-
 ## Quick Install
 
 ### macOS / Linux (Homebrew - recommended)
@@ -127,6 +112,21 @@ Go to **Settings → Agents** and click **New Agent**. Pick the runtime you just
 ### 4. Assign your first task
 
 Create an issue from the board (or via `multica issue create`), then assign it to your new agent. The agent will automatically pick up the task, execute it on your runtime, and report progress — just like a human teammate.
+
+---
+
+## Multica vs Paperclip
+
+| | Multica | Paperclip |
+|---|---------|-----------|
+| **Focus** | Team AI agent collaboration platform | Solo AI agent company simulator |
+| **User model** | Multi-user teams with roles & permissions | Single board operator |
+| **Agent interaction** | Issues + Chat conversations | Issues + Heartbeat |
+| **Deployment** | Cloud-first | Local-first |
+| **Management depth** | Lightweight (Issues / Projects / Labels) | Heavy governance (Org chart / Approvals / Budgets) |
+| **Extensibility** | Skills system | Skills + Plugin system |
+
+**TL;DR — Multica is built for teams that want to collaborate with AI agents on real projects together.**
 
 ---
 
