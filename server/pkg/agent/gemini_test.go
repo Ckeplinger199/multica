@@ -78,3 +78,33 @@ func TestBuildGeminiArgsOmitsModelWhenEmpty(t *testing.T) {
 		}
 	}
 }
+
+func TestBuildGeminiArgsPassesThroughCustomArgs(t *testing.T) {
+	t.Parallel()
+
+	args := buildGeminiArgs("hi", ExecOptions{
+		CustomArgs: []string{"--sandbox"},
+	}, slog.Default())
+
+	if args[len(args)-1] != "--sandbox" {
+		t.Fatalf("expected --sandbox at end of args, got %v", args)
+	}
+}
+
+func TestBuildGeminiArgsFiltersBlockedCustomArgs(t *testing.T) {
+	t.Parallel()
+
+	args := buildGeminiArgs("hi", ExecOptions{
+		CustomArgs: []string{"-o", "text", "--sandbox"},
+	}, slog.Default())
+
+	// -o text should be filtered, --sandbox should pass through
+	for i, a := range args {
+		if a == "-o" && i+1 < len(args) && args[i+1] == "text" {
+			t.Fatalf("blocked -o text should have been filtered: %v", args)
+		}
+	}
+	if args[len(args)-1] != "--sandbox" {
+		t.Fatalf("expected --sandbox to pass through, got %v", args)
+	}
+}

@@ -264,6 +264,25 @@ func TestFilterCustomArgsBlocksProtocolFlags(t *testing.T) {
 	}
 }
 
+func TestBuildClaudeArgsPassesThroughCustomArgs(t *testing.T) {
+	t.Parallel()
+
+	args := buildClaudeArgs(ExecOptions{
+		CustomArgs: []string{"--max-turns", "50", "--verbose"},
+	}, slog.Default())
+
+	// Custom args should appear at the end
+	found := 0
+	for i, a := range args {
+		if a == "--max-turns" && i+1 < len(args) && args[i+1] == "50" {
+			found++
+		}
+	}
+	if found != 1 {
+		t.Fatalf("expected --max-turns 50 in args: %v", args)
+	}
+}
+
 func TestBuildClaudeArgsFiltersBlockedCustomArgs(t *testing.T) {
 	t.Parallel()
 
@@ -271,13 +290,27 @@ func TestBuildClaudeArgsFiltersBlockedCustomArgs(t *testing.T) {
 		CustomArgs: []string{"--output-format", "text", "--model", "o3"},
 	}, slog.Default())
 
-	// --output-format text should be stripped, --model o3 should pass through
-	for i, a := range args {
-		if a == "--model" && i+1 < len(args) && args[i+1] == "o3" {
-			return // found it — test passes
+	// --output-format text should be stripped
+	for _, a := range args[len(args)-2:] {
+		if a == "text" {
+			// "text" should not be in the last args since --output-format was blocked
+			// The actual --output-format stream-json is earlier in the list
 		}
 	}
-	t.Fatalf("expected --model o3 in args but it was missing: %v", args)
+	// --model o3 should pass through
+	foundModel := false
+	for i, a := range args {
+		if a == "--model" && i+1 < len(args) && args[i+1] == "o3" {
+			foundModel = true
+		}
+		// Verify no duplicate --output-format with value "text"
+		if a == "--output-format" && i+1 < len(args) && args[i+1] == "text" {
+			t.Fatalf("blocked --output-format text should have been filtered: %v", args)
+		}
+	}
+	if !foundModel {
+		t.Fatalf("expected --model o3 in args but it was missing: %v", args)
+	}
 }
 
 func TestBuildClaudeInputEncodesUserMessage(t *testing.T) {

@@ -13,15 +13,13 @@ import { Input } from "@multica/ui/components/ui/input";
 import { Label } from "@multica/ui/components/ui/label";
 import { toast } from "sonner";
 
-let nextArgId = 0;
-
 interface ArgEntry {
-  id: number;
+  id: string;
   value: string;
 }
 
 function argsToEntries(args: string[]): ArgEntry[] {
-  return args.map((value) => ({ id: nextArgId++, value }));
+  return args.map((value) => ({ id: crypto.randomUUID(), value }));
 }
 
 function entriesToArgs(entries: ArgEntry[]): string[] {
@@ -45,7 +43,7 @@ export function CustomArgsTab({
   const dirty = JSON.stringify(currentArgs) !== JSON.stringify(originalArgs);
 
   const addEntry = () => {
-    setEntries([...entries, { id: nextArgId++, value: "" }]);
+    setEntries([...entries, { id: crypto.randomUUID(), value: "" }]);
   };
 
   const removeEntry = (index: number) => {
