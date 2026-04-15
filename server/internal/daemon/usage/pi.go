@@ -110,6 +110,10 @@ func (s *Scanner) parsePiFile(path string) *Record {
 			continue
 		}
 
+		// Only extract usage from agent_end events (cumulative totals).
+		if entry.Type != "agent_end" {
+			continue
+		}
 		if entry.Usage == nil {
 			continue
 		}
