@@ -14,7 +14,7 @@ import {
   KeyRound,
   Terminal,
 } from "lucide-react";
-import type { Agent, RuntimeDevice } from "@multica/core/types";
+import type { Agent, RuntimeDevice, MemberWithUser } from "@multica/core/types";
 import {
   Dialog,
   DialogContent,
@@ -57,12 +57,16 @@ const detailTabs: { id: DetailTab; label: string; icon: typeof FileText }[] = [
 export function AgentDetail({
   agent,
   runtimes,
+  members,
+  currentUserId,
   onUpdate,
   onArchive,
   onRestore,
 }: {
   agent: Agent;
   runtimes: RuntimeDevice[];
+  members: MemberWithUser[];
+  currentUserId: string | null;
   onUpdate: (id: string, data: Partial<Agent>) => Promise<void>;
   onArchive: (id: string) => Promise<void>;
   onRestore: (id: string) => Promise<void>;
@@ -167,6 +171,7 @@ export function AgentDetail({
         {activeTab === "env" && (
           <EnvTab
             agent={agent}
+            readOnly={agent.custom_env_redacted}
             onSave={(updates) => onUpdate(agent.id, updates)}
           />
         )}
@@ -180,6 +185,8 @@ export function AgentDetail({
           <SettingsTab
             agent={agent}
             runtimes={runtimes}
+            members={members}
+            currentUserId={currentUserId}
             onSave={(updates) => onUpdate(agent.id, updates)}
           />
         )}

@@ -14,11 +14,18 @@ function AppContent() {
   const user = useAuthStore((s) => s.user);
   const isLoading = useAuthStore((s) => s.isLoading);
 
+  // Tell the main process which backend URL we talk to, so daemon-manager
+  // can pick the matching CLI profile (server_url from ~/.multica config).
+  useEffect(() => {
+    window.daemonAPI.setTargetApiUrl(DAEMON_TARGET_API_URL);
+  }, []);
+
   // Listen for auth token delivered via deep link (multica://auth/callback?token=...)
   useEffect(() => {
     return window.desktopAPI.onAuthToken(async (token) => {
       try {
-        await useAuthStore.getState().loginWithToken(token);
+        const loggedIn = await useAuthStore.getState().loginWithToken(token);
+        await window.daemonAPI.syncToken(token, loggedIn.id);
         const wsList = await api.listWorkspaces();
         const lastWsId = localStorage.getItem("multica_workspace_id");
         useWorkspaceStore.getState().hydrateWorkspace(wsList, lastWsId);
@@ -27,6 +34,22 @@ function AppContent() {
       }
     });
   }, []);
+
+  // Sync token and start the daemon whenever the user logs in.
+  useEffect(() => {
+    if (!user) return;
+    const token = localStorage.getItem("multica_token");
+    if (!token) return;
+    const userId = user.id;
+    (async () => {
+      try {
+        await window.daemonAPI.syncToken(token, userId);
+        await window.daemonAPI.autoStart();
+      } catch (err) {
+        console.error("Failed to sync daemon on login", err);
+      }
+    })();
+  }, [user]);
 
   if (isLoading) {
     return (
@@ -40,14 +63,32 @@ function AppContent() {
   return <DesktopShell />;
 }
 
-const remoteProxy = Boolean(import.meta.env.VITE_REMOTE_API);
+// Backend the daemon should connect to — same URL the renderer talks to.
+const DAEMON_TARGET_API_URL =
+  import.meta.env.VITE_API_URL || "http://localhost:8080";
+
+// On logout, clear any cached PAT and stop the daemon so that a subsequent
+// login as a different user never inherits the previous user's credentials.
+async function handleDaemonLogout() {
+  try {
+    await window.daemonAPI.clearToken();
+  } catch {
+    // Best-effort — clearing is followed by stop which also hardens state.
+  }
+  try {
+    await window.daemonAPI.stop();
+  } catch {
+    // Daemon may already be stopped.
+  }
+}
 
 export default function App() {
   return (
     <ThemeProvider>
       <CoreProvider
-        apiBaseUrl={remoteProxy ? "" : (import.meta.env.VITE_API_URL || "http://localhost:8080")}
-        wsUrl={remoteProxy ? "ws://localhost:5173/ws" : (import.meta.env.VITE_WS_URL || "ws://localhost:8080/ws")}
+        apiBaseUrl={import.meta.env.VITE_API_URL || "http://localhost:8080"}
+        wsUrl={import.meta.env.VITE_WS_URL || "ws://localhost:8080/ws"}
+        onLogout={handleDaemonLogout}
       >
         <AppContent />
       </CoreProvider>

@@ -49,6 +49,7 @@ export interface Agent {
   runtime_config: Record<string, unknown>;
   custom_env: Record<string, string>;
   custom_args: string[];
+  custom_env_redacted: boolean;
   visibility: AgentVisibility;
   status: AgentStatus;
   max_concurrent_tasks: number;
