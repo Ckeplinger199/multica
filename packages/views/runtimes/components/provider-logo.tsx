@@ -73,6 +73,27 @@ function HermesLogo({ className }: { className: string }) {
   );
 }
 
+// Cursor — stylized cursor/pointer icon based on official branding
+function CursorLogo({ className }: { className: string }) {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" className={className}>
+      <path
+        d="M1 1L7 14L9 8.5L14.5 6.5L1 1Z"
+        fill="currentColor"
+        stroke="currentColor"
+        strokeWidth="0.5"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M9 8.5L14 13.5"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
 export function ProviderLogo({
   provider,
   className = "h-4 w-4",
@@ -91,6 +112,8 @@ export function ProviderLogo({
       return <OpenClawLogo className={className} />;
     case "hermes":
       return <HermesLogo className={className} />;
+    case "cursor":
+      return <CursorLogo className={className} />;
     default:
       return <Monitor className={className} />;
   }
