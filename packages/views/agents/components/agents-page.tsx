@@ -203,6 +203,8 @@ export function AgentsPage() {
             key={selected.id}
             agent={selected}
             runtimes={runtimes}
+            members={members}
+            currentUserId={currentUser?.id ?? null}
             onUpdate={handleUpdate}
             onArchive={handleArchive}
             onRestore={handleRestore}
