@@ -1,4 +1,4 @@
-{$TASK_DOMAIN} {
+{$CADDY_SITE_ADDRESS} {
     @next_static path /_next/static/*
     header @next_static Cache-Control "public, max-age=31536000, immutable, no-transform"
 
