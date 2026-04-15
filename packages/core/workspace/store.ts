@@ -12,6 +12,8 @@ interface WorkspaceStoreOptions {
 
 interface WorkspaceState {
   workspace: Workspace | null;
+  /** True once `hydrateWorkspace` has run (even if no workspace was found). */
+  workspaceHydrated: boolean;
 }
 
 interface WorkspaceActions {
@@ -39,6 +41,7 @@ export function createWorkspaceStore(api: ApiClient, options?: WorkspaceStoreOpt
     // Only the currently selected workspace (UI state).
     // The workspace list is server state and lives in React Query.
     workspace: null,
+    workspaceHydrated: false,
 
     hydrateWorkspace: (wsList, preferredWorkspaceId) => {
       const nextWorkspace =
@@ -53,7 +56,7 @@ export function createWorkspaceStore(api: ApiClient, options?: WorkspaceStoreOpt
         setCurrentWorkspaceId(null);
         rehydrateAllWorkspaceStores();
         storage?.removeItem("multica_workspace_id");
-        set({ workspace: null });
+        set({ workspace: null, workspaceHydrated: true });
         return null;
       }
 
@@ -61,7 +64,7 @@ export function createWorkspaceStore(api: ApiClient, options?: WorkspaceStoreOpt
       setCurrentWorkspaceId(nextWorkspace.id);
       rehydrateAllWorkspaceStores();
       storage?.setItem("multica_workspace_id", nextWorkspace.id);
-      set({ workspace: nextWorkspace });
+      set({ workspace: nextWorkspace, workspaceHydrated: true });
       logger.debug("hydrate workspace", nextWorkspace.name, nextWorkspace.id);
 
       return nextWorkspace;
@@ -86,7 +89,7 @@ export function createWorkspaceStore(api: ApiClient, options?: WorkspaceStoreOpt
       api.setWorkspaceId(null);
       setCurrentWorkspaceId(null);
       rehydrateAllWorkspaceStores();
-      set({ workspace: null });
+      set({ workspace: null, workspaceHydrated: false });
     },
   }));
 }

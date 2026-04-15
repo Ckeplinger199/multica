@@ -13,6 +13,7 @@ import { UpdateNotification } from "./components/update-notification";
 function AppContent() {
   const user = useAuthStore((s) => s.user);
   const isLoading = useAuthStore((s) => s.isLoading);
+  const workspaceHydrated = useWorkspaceStore((s) => s.workspaceHydrated);
   // Deep-link login runs loginWithToken → syncToken → listWorkspaces →
   // hydrateWorkspace sequentially. loginWithToken sets user+isLoading=false
   // as soon as getMe resolves, which would cause DesktopShell to mount
@@ -72,6 +73,20 @@ function AppContent() {
   }
 
   if (!user) return <DesktopLoginPage />;
+
+  // Wait for workspace hydration before mounting DesktopShell so that
+  // OnboardingGate gets a definitive hasWorkspace value on first render.
+  // Without this, OTP login sets `user` (triggering this branch) before
+  // listWorkspaces + hydrateWorkspace complete, causing OnboardingGate
+  // to freeze with hasWorkspace=false even when the user has a workspace.
+  if (!workspaceHydrated) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <MulticaIcon className="size-6 animate-pulse" />
+      </div>
+    );
+  }
+
   return <DesktopShell />;
 }
 

@@ -43,9 +43,11 @@ export function AuthInitializer({
       Promise.all([api.getMe(), api.listWorkspaces()])
         .then(([user, wsList]) => {
           onLogin?.();
-          useAuthStore.setState({ user, isLoading: false });
+          // Hydrate workspace BEFORE flipping isLoading — AppContent gates
+          // on isLoading, so workspace must be ready when it re-renders.
           qc.setQueryData(workspaceKeys.list(), wsList);
           useWorkspaceStore.getState().hydrateWorkspace(wsList, wsId);
+          useAuthStore.setState({ user, isLoading: false });
         })
         .catch((err) => {
           logger.error("cookie auth init failed", err);
@@ -68,10 +70,11 @@ export function AuthInitializer({
     Promise.all([api.getMe(), api.listWorkspaces()])
       .then(([user, wsList]) => {
         onLogin?.();
-        useAuthStore.setState({ user, isLoading: false });
-        // Seed React Query cache so components don't need a second fetch
+        // Hydrate workspace BEFORE flipping isLoading — AppContent gates
+        // on isLoading, so workspace must be ready when it re-renders.
         qc.setQueryData(workspaceKeys.list(), wsList);
         useWorkspaceStore.getState().hydrateWorkspace(wsList, wsId);
+        useAuthStore.setState({ user, isLoading: false });
       })
       .catch((err) => {
         logger.error("auth init failed", err);
